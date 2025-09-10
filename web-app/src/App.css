@@ -1,0 +1,280 @@
+/* =========================
+   Reset & Base Layout
+   ========================= */
+body, html, #root, .container {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: #000; /* hero side uses bg image */
+  overflow: hidden;
+}
+
+/* =========================
+   Wrapper (2-column layout)
+   ========================= */
+.wrapper {
+  display: grid;
+  grid-template-columns: 520px 1fr; /* wider, focused login column */
+  width: 100%;
+  height: 100vh;
+}
+
+/* =========================
+   Left side (login section)
+   ========================= */
+.wrapper > div:first-child {
+  background: #ffffff;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  padding: 28px;
+}
+
+.wrapper > div:first-child > div {
+  display: grid;
+  gap: 1rem;
+  place-items: center;
+}
+
+.wrapper > div:first-child > div > img {
+  width: 200px;
+  height: 200px;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 8px 22px rgba(0,0,0,0.08);
+}
+
+.wrapper > div:first-child > div > h1 {
+  text-align: center;
+  font-size: 2rem;
+  font-weight: 800;
+  color: #1b4332;                 /* brand ink */
+  letter-spacing: -0.2px;
+  margin: 0;
+}
+
+/* =========================
+   Right side (hero)
+   ========================= */
+.wrapper > div:last-child {
+  grid-column: span 1 / span 1;
+  background-size: cover;
+  background-position: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Overlay with smooth gradient */
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, rgba(0,0,0,0.30), rgba(0,0,0,0.45));
+  z-index: 0;
+}
+
+/* Content on the right */
+.content {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 2.2rem;
+  max-width: 90%;
+  display: grid;
+  justify-items: center;
+  place-content: center;
+  height: 100%;
+  animation: fadeIn 1.0s ease;
+}
+
+.title {
+  font-size: 3rem;
+  font-weight: 800;
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: -1px;
+}
+
+.subtitle {
+  font-size: 1.15rem;
+  color: #eef2f7;
+  margin: 0 0 2rem 0;
+  opacity: 0.92;
+}
+
+/* =========================
+   Primary Buttons (brand)
+   ========================= */
+.get-started {
+  background: linear-gradient(90deg, #004093, #00478e); /* brand green */
+  border: none;
+  padding: 12px 36px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  border-radius: 12px;
+  cursor: pointer;
+  box-shadow: 0 8px 22px rgba(45,106,79,0.2);
+  transition: transform .12s ease, box-shadow .2s ease, opacity .2s ease, filter .2s ease;
+}
+.get-started:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(45,106,79,0.26);
+}
+.get-started:active { transform: translateY(0); }
+
+/* =========================
+   Login form (smooth expand)
+   ========================= */
+.loginForm {
+  width: 100%;
+  max-width: 360px;
+  margin-bottom: 16px;
+  display: grid;
+  gap: 14px;
+
+  /* animated reveal */
+  opacity: 0;
+  transform: translateY(-6px);
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .45s ease, opacity .35s ease, transform .35s ease;
+}
+.loginForm.expanded {
+  opacity: 1;
+  transform: translateY(0);
+  max-height: 520px; /* enough for fields + button + error */
+}
+
+/* Input fields */
+.loginForm > .input {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border: 1px solid #cfe6d6;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(6px);
+  padding: 0 12px;
+  box-sizing: border-box;
+}
+
+.loginForm > .input > input {
+  flex: 1;
+  padding: 12px 12px 12px 36px;   /* leave room for left icon if used */
+  border: none;
+  outline: none;
+  font-size: 15px;
+  background: transparent;
+  color: #102a1f;
+}
+.loginForm > .input:focus-within {
+  border-color: #2d6a4f;
+  box-shadow: 0 0 0 3px rgba(45,106,79,0.15);
+}
+
+/* Optional leading icon (if you render one) */
+.field-icon {
+  position: absolute;
+  left: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #567f69;
+  font-size: 18px;
+}
+
+/* Password eye / right icon button */
+.loginForm > .input > button {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #2d6a4f;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 6px;
+}
+
+/* Login button (matches brand) */
+.loginForm .loginBtn {
+  background: linear-gradient(90deg, #2d6a4f, #40916c);
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  padding: 12px 14px;
+  border: none;
+  border-radius: 12px;
+  width: 100%;
+  cursor: pointer;
+  transition: transform .12s ease, box-shadow .2s ease, opacity .2s ease;
+  box-sizing: border-box;
+  box-shadow: 0 8px 22px rgba(45,106,79,0.2);
+}
+.loginForm .loginBtn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 28px rgba(45,106,79,0.26);
+}
+.loginForm .loginBtn:disabled {
+  opacity: .75;
+  cursor: not-allowed;
+}
+
+/* =========================
+   Error message
+   ========================= */
+.errorMessage {
+  color: #b91c1c;
+  text-align: center;
+  width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
+  min-height: 18px; /* prevents layout jump */
+}
+.errorMessage > p {
+  margin: 0;
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* =========================
+   Motion & Accessibility
+   ========================= */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Optional: if you add a one-time intro class in React */
+.intro .content { animation: fadeIn .9s ease both; }
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+/* =========================
+   Responsive
+   ========================= */
+@media (max-width: 960px) {
+  .wrapper {
+    grid-template-columns: 1fr;     /* stack columns */
+  }
+  .wrapper > div:last-child {
+    min-height: 44vh;               /* keep hero visible on small screens */
+  }
+  .title { font-size: 2.4rem; }
+  .wrapper > div:first-child { padding: 22px; }
+}
+
+@media (max-height: 740px) {
+  .wrapper > div:first-child { padding: 20px; }
+  .wrapper > div:first-child > div > img { width: 160px; height: 160px; }
+}

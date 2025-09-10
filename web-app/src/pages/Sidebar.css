@@ -1,0 +1,113 @@
+/* Sidebar.css - Waste Management Theme with Bigger Icons, Red Logout Icon & Dark Red Hover Outline for Logout Only */
+.sidebar {
+  width: 330px;
+  background: linear-gradient(180deg, #e6f4ea 0%, #f4fff7 100%);
+  color: #2f4f2f;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;                 /* full viewport height */
+  position: sticky;
+  top: 0;
+  border-right: 1px solid #d9e8dc;
+  box-shadow: 4px 0 15px rgba(0, 0, 0, 0.05);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+
+  /* padding handled as inner sections so footer is not pushed off-screen */
+  padding: 0;
+  box-sizing: border-box;
+}
+
+/* Header */
+.sidebar-title {
+  font-size: 24px;
+  font-weight: 700;
+  padding: 24px 20px 16px;
+  margin: 0;
+  text-align: center;
+  border-bottom: 1px solid #cbe3d0;
+  color: #1b4332;
+  letter-spacing: .5px;
+}
+
+/* Nav fills available space and can scroll if long */
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1 1 auto;               /* pushes footer down */
+  min-height: 0;                /* required so overflow works inside flex */
+  overflow-y: auto;             /* scroll the menu, not the footer */
+  padding: 16px 20px 20px;      /* top/side padding; bottom gap above footer */
+}
+
+/* Nav buttons */
+.sidebar-button {
+  background: transparent;
+  padding: 14px 16px;
+  border-radius: 10px;
+  border: none;
+  color: #2d6a4f;
+  cursor: pointer;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition: background .25s ease, transform .25s ease, color .25s ease;
+}
+.sidebar-button:hover {
+  background: linear-gradient(90deg, rgba(34,197,94,.08) 0%, rgba(34,197,94,.15) 100%);
+  transform: translateX(4px);
+}
+.sidebar-button.active {
+  background: linear-gradient(90deg, #2d6a4f 0%, #40916c 100%);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 10px rgba(45,106,79,.25);
+}
+.sidebar-button .icon { font-size: 22px; color: #2d6a4f; }
+.sidebar-button.active .icon { color: #fff; }
+.sidebar-button:hover .icon { color: #1b4332; }
+
+/* Footer pinned at the very bottom (logout visible always) */
+.logout-section,
+.footer-section {               /* supports either classname from JSX */
+  margin-top: auto;
+  border-top: 1px solid #cbe3d0;
+  padding: 15px 20px 20px;      /* bottom padding = safe area */
+  background: transparent;
+}
+
+/* Logout button */
+.logout-button {
+  background: transparent;         /* clean, no gradient */
+  color: #e53e3e;                  /* red text */
+  border: 1px solid #e53e3e;       /* red border */
+  padding: 12px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: transform .15s ease, background .2s ease, outline-color .2s ease;
+}
+.logout-button:hover {
+  background: rgba(229,62,62,.1);  /* subtle red hover */
+  transform: translateY(-2px);     /* small lift */
+  outline: 2px solid #8B0000;      /* dark red outline */
+}
+
+.logout-button .icon { color: #e53e3e !important; font-size: 22px; }
+
+/* Dashboard icon a touch larger */
+.dashboard-icon { font-size: 24px; }
+
+/* Small height screens: ensure nav scrolls and footer stays visible */
+@media (max-height: 700px) {
+  .nav-section { padding-bottom: 12px; }
+  .logout-section, .footer-section { padding: 12px 20px 16px; }
+}

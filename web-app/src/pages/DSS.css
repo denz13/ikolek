@@ -1,0 +1,202 @@
+/* DSS.css — Modern Professional with scrollable content */
+
+:root {
+  --gap: 20px;
+  --card-radius: 14px;
+  --card-pad: 20px;
+
+  --border: 1px solid #e2f3e8;
+  --shadow: 0 4px 12px rgba(45, 106, 79, 0.08);
+
+  --ink: #1b4332;
+  --ink-2: #2d6a4f;
+  --bg: #f8fff9;
+  --surface: #ffffff;
+  --surface-2: #f6fff9;
+
+  --ok: #16a34a;
+  --warn: #f59e0b;
+
+  --header-h: 72px;
+}
+
+/* Root with sidebar next to it */
+.dss {
+  display: flex;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Inter", "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+/* Main column is a full-height flex container */
+.dss-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh; /* critical for scroll area sizing */
+}
+
+/* Sticky header */
+.dss-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: var(--surface);
+  border-bottom: 1px solid #cbe3d0;
+  padding: 20px 20px 12px;
+  margin: 0;
+  min-height: var(--header-h);
+  box-sizing: border-box;
+}
+.dss-title { margin: 0; font-size: 26px; font-weight: 700; color: var(--ink); }
+.dss-sub   { margin: 0; font-size: 13px; color: #64748b; }
+
+/* NEW: Scrollable content area beneath the header */
+.dss-content {
+  flex: 1;
+  min-height: 0;        /* allows the child to shrink and enable scrolling */
+  overflow-y: auto;     /* scrolling enabled */
+  padding-bottom: 28px;
+  scrollbar-width: thin;
+  scrollbar-color: #cbe3d0 transparent;
+}
+.dss-content::-webkit-scrollbar { width: 8px; }
+.dss-content::-webkit-scrollbar-thumb {
+  background: #cbe3d0;
+  border-radius: 4px;
+}
+
+/* KPI strip */
+.dss-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--gap);
+  padding: 20px;
+  padding-bottom: 0;
+}
+.kpi {
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--card-radius);
+  padding: 18px 20px;
+  box-shadow: var(--shadow);
+  transition: transform .2s ease;
+}
+.kpi:hover { transform: translateY(-2px); }
+.kpi-label { font-size: .9rem; color: #475569; }
+.kpi-value { font-size: 2rem; font-weight: 700; color: var(--ink-2); margin-top: 6px; }
+
+/* Grid of cards */
+.dss-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--gap);
+  padding: 20px;
+}
+
+/* Card styling */
+.card {
+  background: var(--surface);
+  border: var(--border);
+  border-radius: var(--card-radius);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid #edf1f5;
+}
+.card-head h3 { margin: 0; font-size: 16px; color: var(--ink-2); }
+.hint { font-size: .8rem; color: #64748b; }
+.card-body { padding: 16px 18px; }
+
+/* Bigger, prominent map */
+.dss-map { grid-column: 1 / -1; }
+.dss-map-wrap { height: 480px; }
+.dss-map-canvas {
+  width: 100%;
+  height: 100%;
+  border-radius: var(--card-radius);
+  border: 1px solid #d9e8dc;
+  box-shadow: var(--shadow);
+}
+
+/* Bar chart */
+.dss-barchart text.axis { font-size: 12px; fill: #64748b; }
+.dss-barchart text.val  { font-size: 12px; fill: #0f172a; font-weight: 600; }
+.dss-barchart rect      { fill: #22c55e; }
+
+/* Recommendation table */
+.table { width: 100%; }
+.tr {
+  display: grid;
+  grid-template-columns: 1.2fr .8fr .9fr .9fr;
+  gap: 12px;
+  padding: 10px 8px;
+  align-items: center;
+  border-bottom: 1px dashed #edf1f5;
+}
+.tr.th {
+  font-weight: 700;
+  background: var(--surface-2);
+}
+.row-high { background: #fff5f5; }
+.pill { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: .8rem; }
+.pill-red { background: #fee2e2; color: #b91c1c; }
+.pill-green { background: #dcfce7; color: #166534; }
+.strong { font-weight: 700; }
+
+/* Complaints list */
+.list .row {
+  display: grid;
+  grid-template-columns: 110px 1fr 2fr;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #edf1f5;
+}
+.list .when { color: #64748b; }
+.list .zone { font-weight: 600; }
+.muted { color: #94a3b8; }
+
+/* Fleet snapshot */
+.fleet { display: flex; gap: 18px; flex-wrap: wrap; }
+.fleet-item { display: flex; align-items: center; gap: 8px; }
+.dot { width: 10px; height: 10px; border-radius: 999px; display: inline-block; }
+.dot-green { background: var(--ok); }
+.dot-gray  { background: #94a3b8; }
+.dot-amber { background: var(--warn); }
+
+/* Footer note */
+.dss-footer-note {
+  padding: 10px 20px 0;
+  color: #475569;
+  font-size: .9rem;
+}
+
+/* Responsive */
+@media (max-width: 1100px) {
+  .dss-grid { grid-template-columns: 1fr; }
+  .dss-map-wrap { height: 420px; }
+}
+@media (max-width: 768px) {
+  .dss-kpis { grid-template-columns: 1fr 1fr; }
+  .dss-map-wrap { height: 320px; }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+
+/* Safety: if a global stylesheet has overflow hidden on html/body, allow vertical scroll */
+html, body { overflow-x: hidden; overflow-y: auto; }
