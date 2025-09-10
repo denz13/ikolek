@@ -4,7 +4,7 @@ import { getFirestore } from "firebase/firestore";
 
 // Firebase config from .env
 const firebaseConfig = {
-  apiKey: "AIzaSyDuds8rw14J_VV2bk6hZiWFmQ5s420xSYE",
+  apiKey: "AIzaSyAAppP6QCVs4p6k1zFeiQXNCX8D_ysD_4A",
   authDomain: "ikolek-ba6d1.firebaseapp.com",
   projectId: "ikolek-ba6d1",
   storageBucket: "ikolek-ba6d1.firebasestorage.app",

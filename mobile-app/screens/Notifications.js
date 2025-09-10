@@ -27,18 +27,56 @@ export default function NotificationScreen({ route }) {
   useEffect(() => {
     const fetchNotifications = async () => {
       try {
-        let notificationsQuery = collection(db, 'notifications');
+        // Get user ID from route params (for report notifications)
+        const userId = route.params?.uid || route.params?.userId;
+        
+        let allNotifications = [];
+        
+        // Fetch regular notifications (for collectors)
         if (truckId) {
-          notificationsQuery = query(notificationsQuery, where('truckId', '==', truckId));
+          const notificationsQuery = query(collection(db, 'notifications'), where('truckId', '==', truckId));
+          const snapshot = await getDocs(notificationsQuery);
+          const notifs = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            type: 'assignment' // Mark as assignment notification
+          }));
+          allNotifications = [...allNotifications, ...notifs];
+        }
+        
+        // Fetch report notifications (for users)
+        if (userId) {
+          console.log('Fetching notifications for userId:', userId);
+          const reportNotificationsQuery = query(
+            collection(db, 'notifications_reports'), 
+            where('users_id', '==', userId)
+          );
+          const reportSnapshot = await getDocs(reportNotificationsQuery);
+          console.log('Report notifications found:', reportSnapshot.docs.length);
+          const reportNotifs = reportSnapshot.docs.map(doc => {
+            console.log('Report notification data:', doc.data());
+            return {
+              id: doc.id,
+              ...doc.data(),
+              type: 'report_response', // Mark as report notification
+              title: doc.data().title || 'Report Response',
+              message: doc.data().message || 'No message',
+              timestamp: doc.data().createdAt || doc.data().timestamp
+            };
+          });
+          allNotifications = [...allNotifications, ...reportNotifs];
+        } else {
+          console.log('No userId found in route params');
         }
 
-        const snapshot = await getDocs(notificationsQuery);
-        const notifs = snapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
+        // Sort by timestamp (newest first)
+        allNotifications.sort((a, b) => {
+          const timeA = a.timestamp?.seconds || 0;
+          const timeB = b.timestamp?.seconds || 0;
+          return timeB - timeA;
+        });
 
-        setNotifications(notifs);
+        setNotifications(allNotifications);
       } catch (error) {
         console.error('Error fetching notifications:', error);
         Alert.alert('Error', 'Failed to load notifications. Please try again later.');
@@ -48,7 +86,7 @@ export default function NotificationScreen({ route }) {
     };
 
     fetchNotifications();
-  }, [truckId]);
+  }, [truckId, route.params?.uid, route.params?.userId]);
 
   // Changed from collectorId to truckId
   const addNotification = async (truckId, message) => {
@@ -72,24 +110,51 @@ export default function NotificationScreen({ route }) {
     addNotification(truckId, message);
   };
 
-  const renderNotification = ({ item }) => (
-    <TouchableOpacity
-      style={[styles.card, isDarkMode && styles.darkCard]}
-      onPress={() => navigation.navigate('NotificationDetails', { notificationDetails: item })}
-    >
-      <Text style={[styles.cardTitle, isDarkMode && styles.darkText]}>
-        {item.title || 'No Title'}
-      </Text>
-      <Text style={[styles.cardBody, isDarkMode && styles.darkText]}>
-        {item.message || 'No Message'}
-      </Text>
-      <Text style={[styles.cardDate, isDarkMode && styles.darkText]}>
-        {item.timestamp?.seconds
-          ? new Date(item.timestamp.seconds * 1000).toLocaleString()
-          : 'Unknown Timestamp'}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderNotification = ({ item }) => {
+    const isReportNotification = item.type === 'report_response';
+    const iconName = isReportNotification ? 'document-text' : 'notifications';
+    const iconColor = isReportNotification ? '#4CAF50' : '#2196F3';
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.card, 
+          isDarkMode && styles.darkCard,
+          isReportNotification && styles.reportCard
+        ]}
+        onPress={() => navigation.navigate('NotificationDetails', { notificationDetails: item })}
+      >
+        <View style={styles.notificationHeader}>
+          <Ionicons 
+            name={iconName} 
+            size={20} 
+            color={iconColor} 
+            style={styles.notificationIcon}
+          />
+          <Text style={[
+            styles.cardTitle, 
+            isDarkMode && styles.darkText,
+            isReportNotification && styles.reportTitle
+          ]}>
+            {item.title || 'No Title'}
+          </Text>
+        </View>
+        <Text style={[styles.cardBody, isDarkMode && styles.darkText]}>
+          {item.message || 'No Message'}
+        </Text>
+        <Text style={[styles.cardDate, isDarkMode && styles.darkText]}>
+          {item.timestamp?.seconds
+            ? new Date(item.timestamp.seconds * 1000).toLocaleString()
+            : 'Unknown Timestamp'}
+        </Text>
+        {isReportNotification && (
+          <View style={styles.reportBadge}>
+            <Text style={styles.reportBadgeText}>Report Response</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={[styles.container, isDarkMode && styles.darkContainer]}>
@@ -158,9 +223,40 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 15,
     marginBottom: 10,
+    position: 'relative',
   },
   darkCard: {
     backgroundColor: '#1E1E1E',
+  },
+  reportCard: {
+    borderLeftWidth: 4,
+    borderLeftColor: '#4CAF50',
+  },
+  notificationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  notificationIcon: {
+    marginRight: 10,
+  },
+  reportTitle: {
+    color: '#4CAF50',
+    fontWeight: 'bold',
+  },
+  reportBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    backgroundColor: '#4CAF50',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  reportBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: 'bold',
   },
   cardTitle: {
     fontSize: 16,

@@ -8,6 +8,7 @@ import {
   onSnapshot,
   doc,
   updateDoc,
+  addDoc,
   serverTimestamp,
   // optional: orderBy
 } from "firebase/firestore";
@@ -20,8 +21,10 @@ const Reports = () => {
   const [selectedFeedback, setSelectedFeedback] = useState(null);
   const [reply, setReply] = useState("");
   const [usersMap, setUsersMap] = useState({}); // uid -> { displayName, email, ... }
+  const [showAddressedModal, setShowAddressedModal] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all"); // "all", "pending", "addressed"
 
-  /** Live-load all reports (filter out archived client-side) */
+  /** Live-load all reports (include addressed reports even if archived) */
   useEffect(() => {
     // If you want newest first, uncomment the orderBy import and next line:
     // const q = query(collection(db, "reports"), orderBy("submittedAt", "desc"));
@@ -29,7 +32,8 @@ const Reports = () => {
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const all = [];
       querySnapshot.forEach((d) => all.push({ id: d.id, ...d.data() }));
-      const visible = all.filter((f) => !f.archived);
+      // Show all reports, including addressed ones (even if archived)
+      const visible = all.filter((f) => !f.archived || f.status === "addressed");
 
       setFeedbacks(visible);
 
@@ -71,26 +75,77 @@ const Reports = () => {
     setReply(selectedFeedback?.response || "");
   }, [selectedFeedback]);
 
-  const markAsAddressed = async () => {
-    if (!selectedFeedback) return;
-    const docRef = doc(db, "reports", selectedFeedback.id);
-    await updateDoc(docRef, {
-      status: "addressed",
-      archived: true,
-      archivedAt: serverTimestamp(),
-    });
-    alert("Report marked as addressed and archived.");
-  };
-
   const sendReply = async () => {
     if (!selectedFeedback) return;
     if (!reply.trim()) return alert("Reply cannot be empty");
+    
+    // Check if report is already addressed
+    if (selectedFeedback.status === "addressed") {
+      setShowAddressedModal(true);
+      return;
+    }
+    
     const docRef = doc(db, "reports", selectedFeedback.id);
-    await updateDoc(docRef, { response: reply.trim(), status: "replied" });
-    alert("Reply sent/updated!");
+    await updateDoc(docRef, { 
+      response: reply.trim(), 
+      status: "addressed",
+      archived: true,
+      archivedAt: serverTimestamp()
+    });
+    
+    // Create notification for the user
+    try {
+      await addDoc(collection(db, "notifications_reports"), {
+        users_id: selectedFeedback.userId,
+        title: "Report Response",
+        message: `Your report has been addressed. Response: ${reply.trim()}`,
+        status: "unread",
+        reportId: selectedFeedback.id,
+        createdAt: serverTimestamp(),
+        type: "report_response"
+      });
+    } catch (error) {
+      console.error("Error creating notification:", error);
+      // Don't fail the whole operation if notification fails
+    }
+    
+    // Update local state to reflect the change
+    setFeedbacks(prevFeedbacks => 
+      prevFeedbacks.map(feedback => 
+        feedback.id === selectedFeedback.id 
+          ? { ...feedback, status: "addressed", response: reply.trim() }
+          : feedback
+      )
+    );
+    
+    // Update selected feedback
+    setSelectedFeedback(prev => ({ ...prev, status: "addressed", response: reply.trim() }));
+    
+    alert("Reply sent and report marked as addressed!");
   };
 
-  const handleSelectFeedback = (feedback) => setSelectedFeedback(feedback);
+  const handleSelectFeedback = (feedback) => {
+    if (feedback.status === "addressed") {
+      setShowAddressedModal(true);
+    } else {
+      setSelectedFeedback(feedback);
+    }
+  };
+
+  // Filter feedbacks based on status
+  const filteredFeedbacks = feedbacks.filter(feedback => {
+    if (statusFilter === "all") return true;
+    if (statusFilter === "pending") return feedback.status !== "addressed";
+    if (statusFilter === "addressed") return feedback.status === "addressed";
+    return true;
+  });
+
+  // Debug: Log current statuses when filter changes
+  useEffect(() => {
+    console.log("Current filter:", statusFilter);
+    console.log("All feedbacks:", feedbacks.map(f => ({ id: f.id, status: f.status, response: f.response })));
+    console.log("Filtered feedbacks:", filteredFeedbacks.map(f => ({ id: f.id, status: f.status })));
+  }, [statusFilter, feedbacks, filteredFeedbacks]);
 
   // Safely read zone during field transitions
   const getZone = (fb) => fb?.zone || fb?.zoning || fb?.zoneId || null;
@@ -172,8 +227,9 @@ const Reports = () => {
               <textarea
                 value={reply}
                 onChange={(e) => setReply(e.target.value)}
-                placeholder="Write your reply..."
+                placeholder={selectedFeedback?.status === "addressed" ? "This report has been addressed and archived." : "Write your reply..."}
                 spellCheck
+                disabled={selectedFeedback?.status === "addressed"}
               />
 
               <div className="reports-buttons">
@@ -181,17 +237,9 @@ const Reports = () => {
                   type="button"
                   className="btn btn-green"
                   onClick={sendReply}
-                  disabled={!selectedFeedback}
+                  disabled={!selectedFeedback || selectedFeedback?.status === "addressed"}
                 >
-                  Send/Update Reply
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-orange"
-                  onClick={markAsAddressed}
-                  disabled={!selectedFeedback}
-                >
-                  Addressed
+                  {selectedFeedback?.status === "addressed" ? "Report Addressed" : "Send Reply"}
                 </button>
               </div>
             </div>
@@ -200,27 +248,46 @@ const Reports = () => {
 
         {/* Left: Report List */}
         <div className="reports-list">
-          <h3 className="reports-title">
-            <FiMessageSquare className="reports-icon" />
-            <span>Reports</span>
-          </h3>
+          <div className="reports-header">
+            <h3 className="reports-title">
+              <FiMessageSquare className="reports-icon" />
+              <span>Reports ({filteredFeedbacks.length})</span>
+            </h3>
+            <div className="status-filter">
+              <select 
+                value={statusFilter} 
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="filter-select"
+              >
+                <option value="all">All Reports</option>
+                <option value="pending">Pending</option>
+                <option value="addressed">Addressed</option>
+              </select>
+            </div>
+          </div>
 
           <div className="reports-card-items">
-            {feedbacks.length === 0 ? (
-              <p className="reports-empty">No reports available</p>
+            {filteredFeedbacks.length === 0 ? (
+              <p className="reports-empty">
+                {statusFilter === "all" ? "No reports available" : 
+                 statusFilter === "pending" ? "No pending reports" : 
+                 "No addressed reports"}
+              </p>
             ) : (
-              feedbacks.map((feedback) => {
+              filteredFeedbacks.map((feedback) => {
                 const userLabel = getUserLabel(feedback.userId);
                 return (
                   <div
                     key={feedback.id}
                     className={`reports-item ${
-                      feedback.status === "read" || feedback.status === "addressed"
+                      feedback.status === "addressed"
+                        ? "addressed"
+                        : feedback.status === "read"
                         ? "read"
                         : "unread"
                     }`}
                     onClick={() => handleSelectFeedback(feedback)}
-                    title="Open report"
+                    title={feedback.status === "addressed" ? "Report already addressed - Click to see details" : "Open report"}
                   >
                     <p>
                       <strong>User:</strong> {userLabel}
@@ -239,6 +306,24 @@ const Reports = () => {
           </div>
         </div>
       </div>
+
+      {/* Addressed Modal */}
+      {showAddressedModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Report Already Addressed</h3>
+            <p>This report has already been addressed and archived. You cannot send additional replies.</p>
+            <div className="modal-buttons">
+              <button 
+                className="btn btn-green" 
+                onClick={() => setShowAddressedModal(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

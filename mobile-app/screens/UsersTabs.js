@@ -10,8 +10,9 @@ import { ThemeContext } from "./ThemeContext";
 
 const Tab = createBottomTabNavigator();
 
-export default function UsersTabs() {
+export default function UsersTabs({ route }) {
   const { isDarkMode } = useContext(ThemeContext);
+  const { uid, userId } = route.params || {};
 
   return (
     <Tab.Navigator
@@ -37,11 +38,11 @@ export default function UsersTabs() {
         tabBarHideOnKeyboard: true,
       })}
     >
-      <Tab.Screen name="Home" component={UsersDashboard} />
-      <Tab.Screen name="Schedules" component={UserSchedules} />
-      <Tab.Screen name="Collection" component={UsersCollection} />
-      <Tab.Screen name="Reports" component={Reports} />
-      <Tab.Screen name="Settings" component={UserSettings} />
+      <Tab.Screen name="Home" component={UsersDashboard} initialParams={{ uid, userId }} />
+      <Tab.Screen name="Schedules" component={UserSchedules} initialParams={{ uid, userId }} />
+      <Tab.Screen name="Collection" component={UsersCollection} initialParams={{ uid, userId }} />
+      <Tab.Screen name="Reports" component={Reports} initialParams={{ uid, userId }} />
+      <Tab.Screen name="Settings" component={UserSettings} initialParams={{ uid, userId }} />
     </Tab.Navigator>
   );
 }
