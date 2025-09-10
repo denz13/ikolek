@@ -8,6 +8,7 @@ import {
   BackHandler,
   SafeAreaView,
   Platform,
+  Dimensions,
 } from "react-native";
 import { ThemeContext } from "./ThemeContext";
 import { db } from "../firebasecollector/firebase";
@@ -25,12 +26,12 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import * as Location from "expo-location";
 import { Ionicons, FontAwesome5 } from "@expo/vector-icons";
 import polyline from "@mapbox/polyline";
+import { responsive, wp, hp, fp, rp, isTablet, isSmallDevice } from "../utils/responsive";
 
 const GOOGLE_ROUTES_API_KEY = "AIzaSyDp7VxhZMHKPdCSB4FTru40iVkmTQ7bU3M";
 
-export default function UsersDashboard({ navigation }) {
+export default function UsersDashboard({ navigation, route }) {
   const { isDarkMode } = useContext(ThemeContext);
-  const route = useRoute();
 
   const [loading, setLoading] = useState(true);
   const [location, setLocation] = useState(null);
@@ -82,7 +83,7 @@ export default function UsersDashboard({ navigation }) {
     }
   };
 
-  // fetch user location + trucks
+  // fetch user location + trucks + notifications count
   useFocusEffect(
     useCallback(() => {
       const initDashboard = async () => {
@@ -106,6 +107,9 @@ export default function UsersDashboard({ navigation }) {
             setTrucks(trucksData);
           });
 
+          // Fetch notifications count
+          await fetchNotificationsCount();
+
           return unsubscribe;
         } catch (error) {
           console.error("Error loading dashboard:", error);
@@ -124,20 +128,77 @@ export default function UsersDashboard({ navigation }) {
     }, [])
   );
 
-  const handleNotificationPress = async () => {
-    navigation.navigate("UsersNotifications");
+  // Refresh notification count when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotificationsCount();
+    }, [])
+  );
+
+  // Fetch notifications count
+  const fetchNotificationsCount = async () => {
     try {
+      const { uid, userId } = route.params || {};
+      let totalCount = 0;
+
+      // Count regular notifications
       const notificationsQuery = query(
         collection(db, "notifications"),
+        where("target", "==", "users"),
         where("read", "==", false)
       );
       const notificationsSnapshot = await getDocs(notificationsQuery);
+      totalCount += notificationsSnapshot.docs.length;
+
+      // Count report notifications
+      if (userId) {
+        const reportNotificationsQuery = query(
+          collection(db, "notifications_reports"),
+          where("users_id", "==", userId),
+          where("status", "==", "unread")
+        );
+        const reportSnapshot = await getDocs(reportNotificationsQuery);
+        totalCount += reportSnapshot.docs.length;
+      }
+
+      setNotificationsCount(totalCount);
+    } catch (error) {
+      console.error("Error fetching notifications count:", error);
+    }
+  };
+
+  const handleNotificationPress = async () => {
+    const { uid, userId } = route.params || {};
+    navigation.navigate("UsersNotifications", { uid, userId });
+    
+    try {
       const batch = writeBatch(db);
 
+      // Mark regular notifications as read
+      const notificationsQuery = query(
+        collection(db, "notifications"),
+        where("target", "==", "users"),
+        where("read", "==", false)
+      );
+      const notificationsSnapshot = await getDocs(notificationsQuery);
       notificationsSnapshot.forEach((docSnap) => {
         const notificationRef = doc(db, "notifications", docSnap.id);
         batch.update(notificationRef, { read: true });
       });
+
+      // Mark report notifications as read
+      if (userId) {
+        const reportNotificationsQuery = query(
+          collection(db, "notifications_reports"),
+          where("users_id", "==", userId),
+          where("status", "==", "unread")
+        );
+        const reportSnapshot = await getDocs(reportNotificationsQuery);
+        reportSnapshot.forEach((docSnap) => {
+          const reportNotificationRef = doc(db, "notifications_reports", docSnap.id);
+          batch.update(reportNotificationRef, { status: "read" });
+        });
+      }
 
       await batch.commit();
       setNotificationsCount(0);
@@ -147,32 +208,9 @@ export default function UsersDashboard({ navigation }) {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
-      {/* Fixed Top App Bar */}
-      <View style={[styles.appBar, isDarkMode && styles.darkAppBar]}>
-        <Text style={[styles.appTitle, isDarkMode && styles.darkText]}>
-          Users Dashboard
-        </Text>
-        <TouchableOpacity onPress={handleNotificationPress}>
-          <View style={styles.notificationContainer}>
-            <Ionicons
-              name="notifications-outline"
-              size={26}
-              color={isDarkMode ? "#fff" : "#000"}
-            />
-            {notificationsCount > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationText}>
-                  {notificationsCount}
-                </Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Scrollable Map Content */}
-      <View style={styles.content}>
+    <View style={styles.container}>
+      {/* Full Screen Map */}
+      <View style={styles.mapContainer}>
         {location ? (
           <MapView
             style={StyleSheet.absoluteFillObject}
@@ -185,7 +223,7 @@ export default function UsersDashboard({ navigation }) {
           >
             {/* User marker */}
             <Marker coordinate={location} title="You are here">
-              <Ionicons name="person-circle" size={36} color="blue" />
+              <Ionicons name="person-circle" size={responsive.iconSize['3xl']} color="blue" />
             </Marker>
 
             {/* Live trucks */}
@@ -200,7 +238,7 @@ export default function UsersDashboard({ navigation }) {
                   title={`Truck ${truck.id}`}
                   description="Live location"
                 >
-                  <FontAwesome5 name="truck" size={28} color="green" />
+                  <FontAwesome5 name="truck" size={responsive.iconSize.xl} color="green" />
                 </Marker>
               ) : null
             )}
@@ -212,12 +250,12 @@ export default function UsersDashboard({ navigation }) {
                   coordinate={routeCoords[routeCoords.length - 1]}
                   title="Destination"
                 >
-                  <Ionicons name="flag" size={28} color="red" />
+                  <Ionicons name="flag" size={responsive.iconSize.xl} color="red" />
                 </Marker>
                 <Polyline
                   coordinates={routeCoords}
                   strokeColor="#007AFF"
-                  strokeWidth={4}
+                  strokeWidth={rp(4)}
                 />
               </>
             )}
@@ -230,47 +268,119 @@ export default function UsersDashboard({ navigation }) {
           />
         )}
       </View>
-    </SafeAreaView>
+
+      {/* Overlay Header */}
+      <View style={[styles.topBar, isDarkMode && styles.darkTopBar]}>
+        <View style={styles.titleContainer}>
+          <Text style={[styles.header, isDarkMode && styles.darkText]}>
+            Users Dashboard
+          </Text>
+        </View>
+        <TouchableOpacity onPress={handleNotificationPress} style={styles.notificationButton}>
+          <View style={styles.notificationContainer}>
+            <Ionicons
+              name="notifications-outline"
+              size={responsive.iconSize['2xl']}
+              color={notificationsCount > 0 ? "#ff4444" : "#4CAF50"}
+            />
+            {notificationsCount > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationText}>
+                  {notificationsCount}
+                </Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  loader: { flex: 1 },
-  appBar: {
-    position: "absolute",
-    top: Platform.OS === "android" ? 25 : 0,
+  container: {
+    flex: 1,
+    backgroundColor: '#fff',
+  },
+  mapContainer: {
+    flex: 1,
+  },
+  loader: { 
+    flex: 1 
+  },
+  topBar: {
+    position: 'absolute',
+    top: responsive.spacing['4xl'],
+    left: responsive.spacing.xl,
+    right: responsive.spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: responsive.spacing['4xl'],
+    zIndex: 1000,
+    ...(isTablet() && {
+      top: responsive.spacing['5xl'],
+      left: responsive.spacing['3xl'],
+      right: responsive.spacing['3xl'],
+      height: responsive.spacing['5xl'],
+    }),
+  },
+  darkTopBar: {
+    // Add any dark mode specific styling for overlay if needed
+  },
+  titleContainer: {
+    position: 'absolute',
     left: 0,
     right: 0,
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    height: 60,
-    borderBottomWidth: 1,
-    borderColor: "#ccc",
-    elevation: 3,
-    zIndex: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  darkAppBar: { backgroundColor: "#1c1c1e", borderColor: "#444" },
-  appTitle: { fontSize: 20, fontWeight: "bold", color: "#333" },
-  darkText: { color: "#fff" },
-  notificationContainer: { position: "relative" },
+  header: {
+    fontSize: responsive.fontSize['2xl'],
+    fontWeight: 'bold',
+    color: '#333',
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+    ...(isSmallDevice() && { fontSize: responsive.fontSize.xl }),
+    ...(isTablet() && { fontSize: responsive.fontSize['3xl'] }),
+  },
+  darkText: {
+    color: '#fff',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  notificationButton: {
+    position: "absolute",
+    right: 0,
+    padding: responsive.spacing.sm,
+    ...(isTablet() && {
+      padding: responsive.spacing.base,
+    }),
+  },
+  notificationContainer: { 
+    position: "relative" 
+  },
   notificationBadge: {
     position: "absolute",
-    top: -5,
-    right: -5,
+    top: rp(-5),
+    right: rp(-5),
     backgroundColor: "red",
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    width: rp(18),
+    height: rp(18),
+    borderRadius: rp(9),
     justifyContent: "center",
     alignItems: "center",
+    ...(isTablet() && {
+      width: rp(22),
+      height: rp(22),
+      borderRadius: rp(11),
+    }),
   },
-  notificationText: { fontSize: 10, color: "#fff", fontWeight: "bold" },
-  content: {
-    flex: 1,
-    marginTop: Platform.OS === "android" ? 85 : 75, // push below app bar
+  notificationText: { 
+    fontSize: responsive.fontSize.xs, 
+    color: "#fff", 
+    fontWeight: "bold",
+    ...(isTablet() && { fontSize: responsive.fontSize.sm }),
   },
 });

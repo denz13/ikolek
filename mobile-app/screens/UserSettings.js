@@ -5,7 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ThemeContext } from './ThemeContext';
 import { AuthContext } from './AuthContext'; // Import ThemeContext
 
-export default function SettingsScreen() {
+export default function SettingsScreen({ route }) {
   const { isDarkMode, toggleTheme } = useContext(ThemeContext); // Get theme and toggle function from context
   const navigation = useNavigation();
   const { collectorId, setIsLoggedOut, setCollectorId } = useContext(AuthContext);
@@ -76,7 +76,10 @@ export default function SettingsScreen() {
         <Text style={[styles.settingText, isDarkMode && styles.darkText]}>Gov't Emergency</Text>
       </TouchableOpacity>
 
-      <TouchableOpacity style={[styles.settingItem, isDarkMode && styles.darkItem]} onPress={() => navigation.navigate('UsersNotifications')}>
+      <TouchableOpacity style={[styles.settingItem, isDarkMode && styles.darkItem]} onPress={() => {
+        const { uid, userId } = route.params || {};
+        navigation.navigate('UsersNotifications', { uid, userId });
+      }}>
         <Ionicons name="notifications" size={24} color={iconColor} />
         <Text style={[styles.settingText, isDarkMode && styles.darkText]}>Notifications</Text>
       </TouchableOpacity>

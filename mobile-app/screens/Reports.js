@@ -141,7 +141,7 @@ export default function Reports({ route, navigation }) {
     const response = await fetch(uri);
     const blob = await response.blob();
     const imageId = uuid.v4();
-    const objectRef = ref(storage, `report_images/${user}/${imageId}.jpg`);
+    const objectRef = ref(storage, `reports/${user}/${imageId}.jpg`);
     await uploadBytes(objectRef, blob);
     return await getDownloadURL(objectRef);
   };

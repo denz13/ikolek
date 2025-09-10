@@ -42,6 +42,7 @@ export default function UsersLogin() {
       } catch (e) {
         // Silent fallback if API key restrictions block anonymous auth
         console.log('Anonymous auth not available; continuing without it.', e?.code || e);
+        // Continue without Firebase Auth - we'll use username directly
       }
 
       // Firestore user profile at users/<username>
