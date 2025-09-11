@@ -9,6 +9,8 @@ import {
   SafeAreaView,
   Platform,
   Dimensions,
+  Modal,
+  FlatList,
 } from "react-native";
 import { ThemeContext } from "./ThemeContext";
 import { db } from "../firebasecollector/firebase";
@@ -38,6 +40,9 @@ export default function UsersDashboard({ navigation, route }) {
   const [notificationsCount, setNotificationsCount] = useState(0);
   const [trucks, setTrucks] = useState([]);
   const [routeCoords, setRouteCoords] = useState([]);
+  const [mapRegion, setMapRegion] = useState(null);
+  const [focusedCollector, setFocusedCollector] = useState(null);
+
 
   // decode polyline
   const decodePolyline = (encoded) => {
@@ -135,6 +140,24 @@ export default function UsersDashboard({ navigation, route }) {
     }, [])
   );
 
+  // Handle focus location from CollectorsList
+  useFocusEffect(
+    useCallback(() => {
+      const { focusLocation } = route.params || {};
+      if (focusLocation) {
+        setFocusedCollector(focusLocation);
+        setMapRegion({
+          latitude: focusLocation.latitude,
+          longitude: focusLocation.longitude,
+          latitudeDelta: 0.01,
+          longitudeDelta: 0.01,
+        });
+        // Clear the focus after setting it
+        navigation.setParams({ focusLocation: undefined });
+      }
+    }, [route.params, navigation])
+  );
+
   // Fetch notifications count
   const fetchNotificationsCount = async () => {
     try {
@@ -214,7 +237,7 @@ export default function UsersDashboard({ navigation, route }) {
         {location ? (
           <MapView
             style={StyleSheet.absoluteFillObject}
-            region={{
+            region={mapRegion || {
               latitude: location.latitude,
               longitude: location.longitude,
               latitudeDelta: 0.02,
@@ -225,6 +248,20 @@ export default function UsersDashboard({ navigation, route }) {
             <Marker coordinate={location} title="You are here">
               <Ionicons name="person-circle" size={responsive.iconSize['3xl']} color="blue" />
             </Marker>
+
+            {/* Focused collector marker */}
+            {focusedCollector && (
+              <Marker 
+                coordinate={{
+                  latitude: focusedCollector.latitude,
+                  longitude: focusedCollector.longitude,
+                }}
+                title={`${focusedCollector.collectorName}`}
+                description={`Collector ID: ${focusedCollector.collectorId}`}
+              >
+                <FontAwesome5 name="truck" size={responsive.iconSize.xl} color="green" />
+              </Marker>
+            )}
 
             {/* Live trucks */}
             {trucks.map((truck) =>
@@ -273,26 +310,55 @@ export default function UsersDashboard({ navigation, route }) {
       <View style={[styles.topBar, isDarkMode && styles.darkTopBar]}>
         <View style={styles.titleContainer}>
           <Text style={[styles.header, isDarkMode && styles.darkText]}>
-            Users Dashboard
+            {focusedCollector ? 'Viewing Collector' : 'Users Dashboard'}
           </Text>
+          {focusedCollector && (
+            <>
+              <Text style={[styles.subHeader, isDarkMode && styles.darkSubText]}>
+                {focusedCollector.collectorName}
+              </Text>
+              <Text style={[styles.subHeader, isDarkMode && styles.darkSubText]}>
+                ID: {focusedCollector.collectorId}
+              </Text>
+            </>
+          )}
         </View>
-        <TouchableOpacity onPress={handleNotificationPress} style={styles.notificationButton}>
-          <View style={styles.notificationContainer}>
+        <View style={styles.rightButtons}>
+          {/* Collectors Button */}
+          <TouchableOpacity 
+            onPress={() => navigation.navigate('CollectorsList')} 
+            style={styles.zoneButton}
+          >
             <Ionicons
-              name="notifications-outline"
+              name="people-outline"
               size={responsive.iconSize['2xl']}
-              color={notificationsCount > 0 ? "#ff4444" : "#4CAF50"}
+              color="#007AFF"
             />
-            {notificationsCount > 0 && (
-              <View style={styles.notificationBadge}>
-                <Text style={styles.notificationText}>
-                  {notificationsCount}
-                </Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
+            <Text style={styles.zoneButtonText}>
+              Collectors
+            </Text>
+          </TouchableOpacity>
+          
+          {/* Notification Bell */}
+          <TouchableOpacity onPress={handleNotificationPress} style={styles.notificationButton}>
+            <View style={styles.notificationContainer}>
+              <Ionicons
+                name="notifications-outline"
+                size={responsive.iconSize['2xl']}
+                color={notificationsCount > 0 ? "#ff4444" : "#4CAF50"}
+              />
+              {notificationsCount > 0 && (
+                <View style={styles.notificationBadge}>
+                  <Text style={styles.notificationText}>
+                    {notificationsCount}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
+
     </View>
   );
 }
@@ -330,9 +396,10 @@ const styles = StyleSheet.create({
   titleContainer: {
     position: 'absolute',
     left: 0,
-    right: 0,
-    alignItems: 'center',
-    justifyContent: 'center',
+    paddingLeft: responsive.spacing.xl,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-start',
+    top: 0,
   },
   header: {
     fontSize: responsive.fontSize['2xl'],
@@ -350,9 +417,50 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 2,
   },
-  notificationButton: {
+  subHeader: {
+    fontSize: responsive.fontSize.sm,
+    fontWeight: '500',
+    color: '#666',
+    textShadowColor: 'rgba(255, 255, 255, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+    marginTop: responsive.spacing.xs,
+    ...(isSmallDevice() && { fontSize: responsive.fontSize.xs }),
+    ...(isTablet() && { fontSize: responsive.fontSize.base }),
+  },
+  darkSubText: {
+    color: '#ccc',
+    textShadowColor: 'rgba(0, 0, 0, 0.8)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  rightButtons: {
     position: "absolute",
     right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: responsive.spacing.sm,
+  },
+  zoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: responsive.borderRadius.lg,
+    paddingHorizontal: responsive.spacing.sm,
+    paddingVertical: responsive.spacing.xs,
+    gap: responsive.spacing.xs,
+    ...(isTablet() && {
+      paddingHorizontal: responsive.spacing.base,
+      paddingVertical: responsive.spacing.sm,
+    }),
+  },
+  zoneButtonText: {
+    fontSize: responsive.fontSize.sm,
+    color: '#007AFF',
+    fontWeight: '600',
+    ...(isTablet() && { fontSize: responsive.fontSize.base }),
+  },
+  notificationButton: {
     padding: responsive.spacing.sm,
     ...(isTablet() && {
       padding: responsive.spacing.base,

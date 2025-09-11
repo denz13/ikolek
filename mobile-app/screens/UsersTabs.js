@@ -6,6 +6,7 @@ import UserSettings from "./UserSettings";
 import UsersCollection from "./UsersCollection";
 import Reports from "./Reports";
 import UsersDashboard from "./UsersDashboard";
+import CollectorsList from "./CollectorsList";
 import { ThemeContext } from "./ThemeContext";
 
 const Tab = createBottomTabNavigator();
@@ -29,6 +30,7 @@ export default function UsersTabs({ route }) {
         tabBarIcon: ({ color, size, focused }) => {
           let iconName = "ellipse-outline"; // safe default
           if (route.name === "Home") iconName = focused ? "home" : "home-outline";
+          else if (route.name === "Collectors") iconName = focused ? "people" : "people-outline";
           else if (route.name === "Schedules") iconName = focused ? "calendar" : "calendar-outline";
           else if (route.name === "Collection") iconName = focused ? "albums" : "albums-outline";
           else if (route.name === "Reports") iconName = focused ? "document-text" : "document-text-outline";
@@ -39,6 +41,7 @@ export default function UsersTabs({ route }) {
       })}
     >
       <Tab.Screen name="Home" component={UsersDashboard} initialParams={{ uid, userId }} />
+      <Tab.Screen name="Collectors" component={CollectorsList} initialParams={{ uid, userId }} />
       <Tab.Screen name="Schedules" component={UserSchedules} initialParams={{ uid, userId }} />
       <Tab.Screen name="Collection" component={UsersCollection} initialParams={{ uid, userId }} />
       <Tab.Screen name="Reports" component={Reports} initialParams={{ uid, userId }} />

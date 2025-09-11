@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 import Sidebar from "../pages/Sidebar";
-import { FaTruck, FaEdit, FaGasPump, FaRoad, FaFilter, FaWrench } from "react-icons/fa";
+import { FaTruck, FaEdit, FaGasPump, FaRoad, FaFilter, FaWrench, FaFileAlt } from "react-icons/fa";
 import { CiCircleList } from "react-icons/ci";
 import { FaTrashCan } from "react-icons/fa6";
 import "./Fleet.css";
@@ -101,8 +101,22 @@ const Fleet = () => {
   const [collectZone, setCollectZone] = useState("");
   const [collectKg, setCollectKg] = useState("");
 
+  // Collection Schedule Modal
+  const [showCollectionScheduleModal, setShowCollectionScheduleModal] = useState(false);
+  const [selectedTruckCollections, setSelectedTruckCollections] = useState([]);
+
+  // Collector Reports Modal
+  const [showCollectorReportsModal, setShowCollectorReportsModal] = useState(false);
+  const [selectedTruckReports, setSelectedTruckReports] = useState([]);
+
   const [selectedTruckId, setSelectedTruckId] = useState(null);
   const [selectedTruckLabel, setSelectedTruckLabel] = useState("");
+
+  // Collections data for checking submitted collections
+  const [collections, setCollections] = useState([]);
+  
+  // Collector reports data
+  const [collectorReports, setCollectorReports] = useState([]);
 
   // Filters / search
   const [search, setSearch] = useState("");
@@ -113,10 +127,10 @@ const Fleet = () => {
     const anyOpen =
       deleteConfirm.open ||
       editConfirm.open ||
-      showFuelModal || showTripModal || showCollectModal;
+      showFuelModal || showTripModal || showCollectModal || showCollectionScheduleModal || showCollectorReportsModal;
     document.body.style.overflow = anyOpen ? "hidden" : "";
     return () => { document.body.style.overflow = ""; };
-  }, [deleteConfirm.open, editConfirm.open, showFuelModal, showTripModal, showCollectModal]);
+  }, [deleteConfirm.open, editConfirm.open, showFuelModal, showTripModal, showCollectModal, showCollectionScheduleModal, showCollectorReportsModal]);
 
   const humanStatus = (t) => {
     const s = t?.status || "inactive";
@@ -134,6 +148,22 @@ const Fleet = () => {
     if (s === "logged_out") return "badge neutral";
     if (s === "to_dump") return "badge err";
     return "badge gray";
+  };
+
+  // Check if truck has submitted collections
+  const hasSubmittedCollections = (truck) => {
+    const truckCollectorId = truck.collectorId;
+    return collections.some(collection => 
+      collection.collectorId === truckCollectorId && collection.status === 'collected'
+    );
+  };
+
+  // Check if truck has submitted reports
+  const hasSubmittedReports = (truck) => {
+    const truckCollectorId = truck.collectorId;
+    return collectorReports.some(report => 
+      report.collectorId === truckCollectorId
+    );
   };
 
   // ===== Fetch (Realtime) =====
@@ -155,6 +185,26 @@ const Fleet = () => {
     const unsub = fetchTrucks();
     return () => unsub && unsub();
   }, [fetchTrucks]);
+
+  // Fetch collections data
+  useEffect(() => {
+    const qy = query(collection(db, "collections"), orderBy("completedAt", "desc"));
+    const unsub = onSnapshot(qy, (snapshot) => {
+      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setCollections(list);
+    });
+    return () => unsub && unsub();
+  }, []);
+
+  // Fetch collector reports data
+  useEffect(() => {
+    const qy = query(collection(db, "collector_reports"));
+    const unsub = onSnapshot(qy, (snapshot) => {
+      const list = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setCollectorReports(list);
+    });
+    return () => unsub && unsub();
+  }, []);
 
   // ===== CRUD: Add / Update =====
   const clearForm = () => {
@@ -386,6 +436,77 @@ const Fleet = () => {
     setShowCollectModal(true);
   };
 
+  // ===== Collection Schedule Modal =====
+  const openCollectScheduleModal = (truck) => {
+    console.log('View collection schedule for truck:', truck.id);
+    
+    // Get collections for this truck's collectorId
+    const truckCollections = collections.filter(collection => 
+      collection.collectorId === truck.collectorId && collection.status === 'collected'
+    );
+    
+    // Sort by completedAt date (newest first)
+    truckCollections.sort((a, b) => {
+      const dateA = a.completedAt?.toDate ? a.completedAt.toDate() : new Date(a.completedAt);
+      const dateB = b.completedAt?.toDate ? b.completedAt.toDate() : new Date(b.completedAt);
+      return dateB - dateA;
+    });
+    
+    setSelectedTruckCollections(truckCollections);
+    setSelectedTruckLabel(truck.truckId || truck.id);
+    setShowCollectionScheduleModal(true);
+  };
+
+  // ===== Collector Reports Modal =====
+  const openCollectorReportsModal = (truck) => {
+    console.log('View collector reports for truck:', truck.id);
+    
+    // Get reports for this truck's collectorId
+    const truckReports = collectorReports.filter(report => 
+      report.collectorId === truck.collectorId
+    );
+    
+    // Sort by createdAt date (newest first)
+    truckReports.sort((a, b) => {
+      const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.createdAt);
+      const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.createdAt);
+      return dateB - dateA;
+    });
+    
+    setSelectedTruckReports(truckReports);
+    setSelectedTruckLabel(truck.truckId || truck.id);
+    setShowCollectorReportsModal(true);
+  };
+
+  // ===== Approve/Decline Report Functions =====
+  const approveReport = async (reportId) => {
+    try {
+      await updateDoc(doc(db, "collector_reports", reportId), {
+        status: "approved",
+        updatedAt: serverTimestamp(),
+      });
+      setSuccessMessage("✅ Report approved successfully!");
+      setTimeout(() => setSuccessMessage(""), 2000);
+    } catch (error) {
+      console.error("Error approving report:", error);
+      alert("Could not approve report.");
+    }
+  };
+
+  const declineReport = async (reportId) => {
+    try {
+      await updateDoc(doc(db, "collector_reports", reportId), {
+        status: "rejected",
+        updatedAt: serverTimestamp(),
+      });
+      setSuccessMessage("❌ Report declined successfully!");
+      setTimeout(() => setSuccessMessage(""), 2000);
+    } catch (error) {
+      console.error("Error declining report:", error);
+      alert("Could not decline report.");
+    }
+  };
+
   const saveCollection = async () => {
     const zone = (collectZone || "").trim();
     const kg = Number(collectKg || 0);
@@ -596,6 +717,21 @@ const Fleet = () => {
                         🧺
                       </button>
 
+                      {/* View Collection Submitted - Only show if truck has submitted collections */}
+                      {hasSubmittedCollections(truck) && (
+                        <button className="small-btn" title="View Collection Schedule" onClick={() => openCollectScheduleModal(truck)}>
+                          📆
+                        </button>
+                      )}
+
+                      {/* View Collector Reports - Only show if truck has submitted reports */}
+                      {hasSubmittedReports(truck) && (
+                        <button className="small-btn" title="View Collector Reports" onClick={() => openCollectorReportsModal(truck)}>
+                          <FaFileAlt />
+                        </button>
+                      )}
+                      
+
                       {/* NEW: Dump Now when full */}
                       {(truck.needsDumping || (cap > 0 && load >= cap)) && (
                         <button className="small-btn danger" title="Dump Now" onClick={() => dumpNow(truck)}>
@@ -801,6 +937,331 @@ const Fleet = () => {
               </button>
               <button className="confirm-btn" onClick={saveCollection}>
                 Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Collection Schedule Modal ===== */}
+      {showCollectionScheduleModal && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ width: '800px', maxHeight: '80vh' }}>
+            <h3>Collection History — {selectedTruckLabel}</h3>
+            
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', marginTop: '16px' }}>
+              {selectedTruckCollections.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                  <p>No collection records found for this truck.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  {selectedTruckCollections.map((collection, index) => {
+                    const completedDate = collection.completedAt?.toDate ? 
+                      collection.completedAt.toDate() : 
+                      new Date(collection.completedAt);
+                    const startedDate = collection.startedAt?.toDate ? 
+                      collection.startedAt.toDate() : 
+                      new Date(collection.startedAt);
+                    
+                    return (
+                      <div key={collection.id || index} style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        backgroundColor: '#f9fafb'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                          <div>
+                            <h4 style={{ margin: '0 0 4px 0', fontSize: '16px', fontWeight: '600' }}>
+                              {collection.location || 'Unknown Location'}
+                            </h4>
+                            <p style={{ margin: '0', fontSize: '14px', color: '#666' }}>
+                              {collection.zone} • {collection.day} • {collection.time}
+                            </p>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ 
+                              backgroundColor: '#10b981', 
+                              color: 'white', 
+                              padding: '4px 8px', 
+                              borderRadius: '4px', 
+                              fontSize: '12px', 
+                              fontWeight: '600',
+                              marginBottom: '4px'
+                            }}>
+                              {collection.weightKg} kg
+                            </div>
+                            <div style={{ fontSize: '12px', color: '#666' }}>
+                              {collection.status}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', color: '#666' }}>
+                          <div>
+                            <strong>Started:</strong> {startedDate.toLocaleString()}
+                          </div>
+                          <div>
+                            <strong>Completed:</strong> {completedDate.toLocaleString()}
+                          </div>
+                          <div>
+                            <strong>Group:</strong> {collection.groupName || 'N/A'}
+                          </div>
+                          <div>
+                            <strong>Schedule ID:</strong> {collection.scheduleId || 'N/A'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-buttons">
+              <button className="cancel-btn" onClick={() => setShowCollectionScheduleModal(false)}>
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Collector Reports Modal ===== */}
+      {showCollectorReportsModal && (
+        <div className="modal-overlay">
+          <div className="modal" style={{ width: '800px', maxHeight: '80vh' }}>
+            <h3>Collector Reports — {selectedTruckLabel}</h3>
+            
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', marginTop: '16px' }}>
+              {selectedTruckReports.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                  <p>No reports found for this collector.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: '12px' }}>
+                  {selectedTruckReports.map((report, index) => {
+                    const createdDate = report.createdAt?.toDate ? 
+                      report.createdAt.toDate() : 
+                      new Date(report.createdAt);
+                    
+                    const getStatusColor = (status) => {
+                      switch (status) {
+                        case 'pending': return '#f59e0b';
+                        case 'approved': return '#10b981';
+                        case 'rejected': return '#ef4444';
+                        default: return '#6b7280';
+                      }
+                    };
+                    
+                    return (
+                      <div key={report.id || index} style={{
+                        border: '1px solid #e5e7eb',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        backgroundColor: '#ffffff',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                        marginBottom: '16px'
+                      }}>
+                        {/* Header Section */}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'flex-start', 
+                          marginBottom: '16px',
+                          borderBottom: '1px solid #f3f4f6',
+                          paddingBottom: '12px'
+                        }}>
+                          <div style={{ flex: 1 }}>
+                            <h4 style={{ 
+                              margin: '0 0 8px 0', 
+                              fontSize: '18px', 
+                              fontWeight: '700',
+                              color: '#1f2937'
+                            }}>
+                              {report.reporttype || 'Unknown Report Type'}
+                            </h4>
+                            <div style={{ 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              gap: '12px',
+                              fontSize: '14px',
+                              color: '#6b7280'
+                            }}>
+                              <span style={{ 
+                                backgroundColor: '#f3f4f6',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '500'
+                              }}>
+                                📅 {report.maintenanceDate || 'N/A'}
+                              </span>
+                              <span style={{ 
+                                backgroundColor: '#f3f4f6',
+                                padding: '4px 8px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                fontWeight: '500'
+                              }}>
+                                🕒 {createdDate.toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ 
+                              backgroundColor: getStatusColor(report.status), 
+                              color: 'white', 
+                              padding: '8px 16px', 
+                              borderRadius: '20px', 
+                              fontSize: '13px', 
+                              fontWeight: '700',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.5px'
+                            }}>
+                              {report.status || 'pending'}
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Report Message Section */}
+                        <div style={{ 
+                          marginBottom: '16px',
+                          padding: '12px',
+                          backgroundColor: '#f9fafb',
+                          borderRadius: '8px',
+                          border: '1px solid #e5e7eb'
+                        }}>
+                          <h5 style={{ 
+                            margin: '0 0 8px 0', 
+                            fontSize: '14px', 
+                            fontWeight: '600',
+                            color: '#374151'
+                          }}>
+                            Report Details:
+                          </h5>
+                          <p style={{ 
+                            margin: '0', 
+                            fontSize: '14px', 
+                            color: '#4b5563', 
+                            lineHeight: '1.5'
+                          }}>
+                            {report.reportMessage || 'No message provided'}
+                          </p>
+                        </div>
+                        
+                        {/* Action Buttons Section */}
+                        {report.status === 'pending' && (
+                          <div style={{ 
+                            display: 'flex', 
+                            gap: '12px', 
+                            marginBottom: '16px',
+                            padding: '12px',
+                            backgroundColor: '#fef3c7',
+                            borderRadius: '8px',
+                            border: '1px solid #fbbf24'
+                          }}>
+                            <button
+                              onClick={() => approveReport(report.id)}
+                              style={{
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                flex: 1,
+                                justifyContent: 'center'
+                              }}
+                              onMouseOver={(e) => {
+                                e.target.style.backgroundColor = '#059669';
+                                e.target.style.transform = 'translateY(-1px)';
+                                e.target.style.boxShadow = '0 4px 8px rgba(16, 185, 129, 0.3)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.target.style.backgroundColor = '#10b981';
+                                e.target.style.transform = 'translateY(0)';
+                                e.target.style.boxShadow = 'none';
+                              }}
+                            >
+                              ✓ Approve Report
+                            </button>
+                            <button
+                              onClick={() => declineReport(report.id)}
+                              style={{
+                                backgroundColor: '#ef4444',
+                                color: 'white',
+                                border: 'none',
+                                padding: '10px 20px',
+                                borderRadius: '8px',
+                                fontSize: '14px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                flex: 1,
+                                justifyContent: 'center'
+                              }}
+                              onMouseOver={(e) => {
+                                e.target.style.backgroundColor = '#dc2626';
+                                e.target.style.transform = 'translateY(-1px)';
+                                e.target.style.boxShadow = '0 4px 8px rgba(239, 68, 68, 0.3)';
+                              }}
+                              onMouseOut={(e) => {
+                                e.target.style.backgroundColor = '#ef4444';
+                                e.target.style.transform = 'translateY(0)';
+                                e.target.style.boxShadow = 'none';
+                              }}
+                            >
+                              ✗ Decline Report
+                            </button>
+                          </div>
+                        )}
+                        
+                        {/* Footer Section */}
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                          fontSize: '12px', 
+                          color: '#9ca3af',
+                          paddingTop: '12px',
+                          borderTop: '1px solid #f3f4f6'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ 
+                              backgroundColor: '#f3f4f6',
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              fontSize: '11px',
+                              fontWeight: '500'
+                            }}>
+                              ID: {report.id || 'N/A'}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '11px' }}>
+                            Created: {createdDate.toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div className="modal-buttons">
+              <button className="cancel-btn" onClick={() => setShowCollectorReportsModal(false)}>
+                Close
               </button>
             </div>
           </div>
