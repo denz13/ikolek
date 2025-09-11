@@ -33,7 +33,7 @@ export default function CollectorsTabs({ route }) {
             iconName = focused ? 'home' : 'home-outline';
           else if (route.name === 'Schedules')
             iconName = focused ? 'calendar' : 'calendar-outline';
-          else if (route.name === 'Collection')
+          else if (route.name === 'Reports')
             iconName = focused ? 'play-circle' : 'play-circle-outline';
           else if (route.name === 'Logs')
             iconName = focused ? 'document-text' : 'document-text-outline';
@@ -46,7 +46,7 @@ export default function CollectorsTabs({ route }) {
     >
       <Tab.Screen name="Home" component={CollectorsDashboard} initialParams={{ collectorId }} />
       <Tab.Screen name="Schedules" component={Schedules} initialParams={{ collectorId }} />
-      <Tab.Screen name="Collection" component={Collection} initialParams={{ collectorId }} />
+      <Tab.Screen name="Reports" component={Collection} initialParams={{ collectorId }} />
       <Tab.Screen name="Logs" component={LogScreen} initialParams={{ collectorId }} />
       <Tab.Screen name="Settings" component={Settings} initialParams={{ collectorId }} />
     </Tab.Navigator>

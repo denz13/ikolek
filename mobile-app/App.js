@@ -25,6 +25,7 @@ import NotificationDetails from './screens/NotificationDetails';
 import AboutUs from './screens/AboutUs';
 import Hotlines from './screens/Hotlines';
 import UsersNotifications from './screens/UsersNotifications';
+import CollectorsList from './screens/CollectorsList';
 
 const Stack = createStackNavigator();
 
@@ -60,6 +61,7 @@ export default function App() {
             <Stack.Screen name="AboutUs" component={AboutUs} />
             <Stack.Screen name="Hotlines" component={Hotlines} />
             <Stack.Screen name="UsersNotifications" component={UsersNotifications} />
+            <Stack.Screen name="CollectorsList" component={CollectorsList} />
           </Stack.Navigator>
         </NavigationContainer>
       </AuthProvider>

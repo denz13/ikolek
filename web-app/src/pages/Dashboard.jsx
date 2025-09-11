@@ -102,21 +102,61 @@ const DashboardScreen = () => {
   }, []);
 
   /* ── GeoJSON helpers ──────────────────────────────────────────────── */
-  const toLatLng = (lngLat) =>
-    new window.google.maps.LatLng(lngLat[1], lngLat[0]); // GeoJSON [lng,lat]
+  const toLatLng = (lngLat) => {
+    if (!Array.isArray(lngLat) || lngLat.length < 2) {
+      throw new Error('Invalid coordinate array');
+    }
+    const [lng, lat] = lngLat;
+    if (typeof lng !== 'number' || typeof lat !== 'number' || 
+        isNaN(lng) || isNaN(lat) || !isFinite(lng) || !isFinite(lat)) {
+      throw new Error('Invalid coordinate values');
+    }
+    return new window.google.maps.LatLng(lat, lng); // GeoJSON [lng,lat] -> LatLng(lat, lng)
+  };
 
   const featureToPolygons = (feature) => {
-    const geom = feature?.geometry;
-    if (!geom) return [];
-    if (geom.type === "Polygon") {
-      // [[ring1Pts], [hole1Pts], ...]
-      return [geom.coordinates.map((ring) => ring.map(toLatLng))];
+    try {
+      const geom = feature?.geometry;
+      if (!geom || !geom.coordinates) return [];
+      
+      if (geom.type === "Polygon") {
+        // [[ring1Pts], [hole1Pts], ...]
+        return [geom.coordinates.map((ring) => {
+          if (!Array.isArray(ring)) return [];
+          return ring.map((coord) => {
+            try {
+              return toLatLng(coord);
+            } catch (e) {
+              console.warn('Invalid coordinate:', coord);
+              return null;
+            }
+          }).filter(Boolean);
+        }).filter(ring => ring.length > 0)];
+      }
+      
+      if (geom.type === "MultiPolygon") {
+        // [[[ring1], [hole1]], [[ring1], ...], ...]
+        return geom.coordinates.map((poly) => {
+          if (!Array.isArray(poly)) return [];
+          return poly.map((ring) => {
+            if (!Array.isArray(ring)) return [];
+            return ring.map((coord) => {
+              try {
+                return toLatLng(coord);
+              } catch (e) {
+                console.warn('Invalid coordinate:', coord);
+                return null;
+              }
+            }).filter(Boolean);
+          }).filter(ring => ring.length > 0);
+        }).filter(poly => poly.length > 0);
+      }
+      
+      return [];
+    } catch (error) {
+      console.error('Error processing feature geometry:', error);
+      return [];
     }
-    if (geom.type === "MultiPolygon") {
-      // [[[ring1], [hole1]], [[ring1], ...], ...]
-      return geom.coordinates.map((poly) => poly.map((ring) => ring.map(toLatLng)));
-    }
-    return [];
   };
 
   const computeBoundsFromRing = (ring) => {
@@ -126,9 +166,25 @@ const DashboardScreen = () => {
   };
 
   const computeBoundsFromPolygons = (polygons) => {
+    if (!polygons || !Array.isArray(polygons) || polygons.length === 0) {
+      return null;
+    }
+    
     const b = new window.google.maps.LatLngBounds();
-    polygons.forEach((poly) => (poly[0] || []).forEach((pt) => b.extend(pt)));
-    return b;
+    let hasValidPoints = false;
+    
+    polygons.forEach((poly) => {
+      if (poly && Array.isArray(poly) && poly[0] && Array.isArray(poly[0])) {
+        poly[0].forEach((pt) => {
+          if (pt && typeof pt.lat === 'function' && typeof pt.lng === 'function') {
+            b.extend(pt);
+            hasValidPoints = true;
+          }
+        });
+      }
+    });
+    
+    return hasValidPoints ? b : null;
   };
 
   /* ── Load city & zones ───────────────────────────────────────────── */
@@ -149,7 +205,20 @@ const DashboardScreen = () => {
 
         const b = computeBoundsFromPolygons(polygons);
         setCityBounds(b);
-        setCityCenter(b.getCenter().toJSON());
+        
+        // Safely get center with fallback
+        if (b) {
+          const center = b.getCenter();
+          if (center && typeof center.toJSON === 'function') {
+            setCityCenter(center.toJSON());
+          } else {
+            // Fallback to default center if bounds center is invalid
+            setCityCenter({ lat: 10.736, lng: 123.010 });
+          }
+        } else {
+          // No valid bounds computed, use default center
+          setCityCenter({ lat: 10.736, lng: 123.010 });
+        }
       } catch (err) {
         console.error("City GeoJSON load failed:", err);
       }

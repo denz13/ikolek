@@ -35,25 +35,17 @@ export default function LogDetails({ route }) {
 
       <DetailItem icon="calendar" label="Date" value={logDetails.date} />
       <DetailItem icon="time" label="Time" value={logDetails.time} />
-      <DetailItem icon="location" label="Route" value={logDetails.routeName} />
+      <DetailItem icon="location" label="Location" value={logDetails.location} />
+      <DetailItem icon="map" label="Zone" value={logDetails.zone} />
       <DetailItem icon="person" label="Collector" value={logDetails.collector} />
+      <DetailItem icon="scale" label="Weight Collected" value={`${logDetails.weightKg} kg`} />
       <DetailItem icon="checkmark-done" label="Status" value={logDetails.status} />
-
-      {logDetails.wasteTypes?.length > 0 && (
-        <View style={themedStyles.detailCard}>
-          <Text style={themedStyles.subHeader}>Waste Types</Text>
-          {logDetails.wasteTypes.map((type, index) => (
-            <Text key={index} style={themedStyles.wasteItem}>• {type}</Text>
-          ))}
-        </View>
-      )}
-
-      {logDetails.notes ? (
-        <View style={themedStyles.detailCard}>
-          <Text style={themedStyles.subHeader}>Notes</Text>
-          <Text style={themedStyles.value}>{logDetails.notes}</Text>
-        </View>
-      ) : null}
+      <DetailItem icon="calendar-outline" label="Schedule Day" value={logDetails.day} />
+      <DetailItem icon="time-outline" label="Schedule Time" value={logDetails.scheduleTime} />
+      <DetailItem icon="car" label="Group" value={logDetails.groupName} />
+      <DetailItem icon="play" label="Started At" value={logDetails.startedAt} />
+      <DetailItem icon="checkmark-circle" label="Completed At" value={logDetails.completedAt} />
+      <DetailItem icon="document" label="Schedule ID" value={logDetails.scheduleId} />
     </ScrollView>
   );
 }
