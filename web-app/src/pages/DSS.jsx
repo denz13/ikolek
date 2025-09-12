@@ -5,22 +5,23 @@ import { GOOGLE_MAPS_LOADER_OPTIONS } from "../utils/googleMapsLoaderOptions";
 import {
   GoogleMap,
   Polygon,
-  HeatmapLayerF,
+  HeatmapLayer,
+  InfoWindow,
+  Marker,
   useJsApiLoader,
 } from "@react-google-maps/api";
 import "./DSS.css";
 
-/** Optional Firestore (auto-fallback to sample data) */
-let db, collection, onSnapshot, query, where, orderBy, limit;
-try {
-  // eslint-disable-next-line no-undef
-  ({ db } = require("../firebase/firebase"));
-  // eslint-disable-next-line no-unused-vars
-  ({ collection, onSnapshot, query, where, orderBy, limit } =
-    // eslint-disable-next-line no-undef
-    require("firebase/firestore"));
-// eslint-disable-next-line no-unused-vars
-} catch (_e) { /* empty */ }
+/** Firestore imports */
+import { db } from "../firebase/firebase";
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  where, 
+  orderBy, 
+  limit 
+} from "firebase/firestore";
 
 /** Config */
 const CITY_OUTLINE_COLOR = "#2d6a4f";
@@ -66,7 +67,9 @@ const DssScreen = () => {
   const [collectors, setCollectors] = useState([]);
   const [reports, setReports] = useState([]);
   const [trucks, setTrucks] = useState([]);
+  const [collections, setCollections] = useState([]);
   const [loadingDb, setLoadingDb] = useState(!!db);
+  const [activeInfoWindow, setActiveInfoWindow] = useState(null);
 
   const { isLoaded, loadError } = useJsApiLoader(GOOGLE_MAPS_LOADER_OPTIONS);
 
@@ -139,21 +142,38 @@ const DssScreen = () => {
 
   /** Firestore feeds */
   useEffect(() => {
+    console.log('🔍 Firestore connection check:', { db: !!db, onSnapshot: !!onSnapshot });
+    
     if (!db) {
+      console.log('❌ No Firestore database connection');
       setLoadingDb(false);
       return;
     }
+    
+    // Debug: List all available collections (this is just for debugging)
+    console.log('🔍 Attempting to connect to Firestore collections...');
+    
     const unsubs = [];
+    
+    // Collectors
     unsubs.push(
-      onSnapshot(collection(db, "collectors"), (snap) =>
-        setCollectors(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      )
+      onSnapshot(collection(db, "collectors"), (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        console.log('👥 Collectors loaded:', data.length);
+        setCollectors(data);
+      })
     );
+    
+    // Trucks
     unsubs.push(
-      onSnapshot(collection(db, "trucks"), (snap) =>
-        setTrucks(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
-      )
+      onSnapshot(collection(db, "trucks"), (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        console.log('🚛 Trucks loaded:', data.length);
+        setTrucks(data);
+      })
     );
+    
+    // Reports
     unsubs.push(
       onSnapshot(
         query(
@@ -161,9 +181,26 @@ const DssScreen = () => {
           orderBy("createdAt", "desc"),
           limit ? limit(200) : undefined
         ),
-        (snap) => setReports(snap.docs.map((d) => ({ id: d.id, ...d.data() })))
+        (snap) => {
+          const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          console.log('📋 Reports loaded:', data.length);
+          setReports(data);
+        }
       )
     );
+    
+    // Collections - Main collection data from mobile app
+    unsubs.push(
+      onSnapshot(collection(db, "collections"), (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+        console.log('🗑️ Collections loaded:', data.length);
+        if (data.length > 0) {
+          console.log('🗑️ Sample collection:', data[0]);
+        }
+        setCollections(data);
+      })
+    );
+    
     setLoadingDb(false);
     return () => unsubs.forEach((u) => u && u());
   }, []);
@@ -175,18 +212,55 @@ const DssScreen = () => {
     return idx;
   }, [zones]);
 
-  const reportsByZone = useMemo(() => {
+  const collectionsByZone = useMemo(() => {
     const counts = {};
-    if (zones.length) zones.forEach((z) => (counts[z.name] = 0));
-    reports.forEach((r) => {
-      const key = zoneIndex.get(r.zoneId) || r.zoneName || r.zone || "Unknown";
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    if (!Object.keys(counts).length && zones.length) {
-      zones.forEach((z, i) => (counts[z.name] = Math.max(1, i % 7)));
+    const weightsByZone = {};
+    
+    if (zones.length) {
+      zones.forEach((z) => {
+        counts[z.name] = 0;
+        weightsByZone[z.name] = 0;
+      });
     }
+    
+    // Count collections and total weight by zone using exact structure from Schedules.js
+    collections.forEach((c) => {
+      // Only count completed collections (status: 'collected')
+      if (c.status === 'collected') {
+        const zoneName = c.zone || "Unknown";
+        const weight = c.weightKg || 0;
+        
+        counts[zoneName] = (counts[zoneName] || 0) + 1;
+        weightsByZone[zoneName] = (weightsByZone[zoneName] || 0) + weight;
+      }
+    });
+    
+    // If no collections data, use sample data for demonstration
+    if (!Object.keys(counts).length && zones.length) {
+      console.log('📊 No collections data found, using sample data for demonstration');
+      zones.forEach((z, i) => {
+        counts[z.name] = Math.max(1, i % 7);
+        weightsByZone[z.name] = Math.max(50, (i % 7) * 100);
+      });
+    }
+    
+    // If no zones data either, create some sample zones
+    if (!Object.keys(counts).length) {
+      console.log('📊 No zones data found, creating sample data');
+      const sampleZones = ['Zone 1', 'Zone 2', 'Zone 3', 'Zone 4', 'Zone 5'];
+      sampleZones.forEach((zone, i) => {
+        counts[zone] = Math.max(1, i % 7);
+        weightsByZone[zone] = Math.max(50, (i % 7) * 100);
+      });
+    }
+    
+    console.log('📊 Collections by zone:', counts);
+    console.log('⚖️ Total weight by zone:', weightsByZone);
+    console.log('📊 Sample collection data:', collections.slice(0, 3));
+    console.log('📊 Completed collections count:', collections.filter(c => c.status === 'collected').length);
+    console.log('📊 All collections count:', collections.length);
     return counts;
-  }, [reports, zones, zoneIndex]);
+  }, [collections, zones]);
 
   const pendingComplaints = useMemo(
     () =>
@@ -226,35 +300,165 @@ const DssScreen = () => {
 
   const truckRecs = useMemo(() => {
     const out = [];
-    Object.entries(reportsByZone).forEach(([zoneName, count]) => {
+    Object.entries(collectionsByZone).forEach(([zoneName, count]) => {
       const trucksNeeded = Math.max(1, Math.ceil(count / TRUCK_CAPACITY_REPORTS_PER_DAY));
       out.push({
         zoneName,
-        reports: count,
+        collections: count,
         trucksNeeded,
         priority: count >= HIGH_PRIORITY_THRESHOLD ? "High" : "Normal",
       });
     });
-    return out.sort((a, b) => b.reports - a.reports);
-  }, [reportsByZone]);
+    return out.sort((a, b) => b.collections - a.collections);
+  }, [collectionsByZone]);
 
-  const heatPoints = useMemo(() => {
+  // Calculate collection levels and create heatmap data based on actual collection locations
+  const collectionHeatData = useMemo(() => {
     if (!isLoaded || !window.google) return [];
-    const pts = reports
-      .filter((r) => r.lat && r.lng)
-      .map((r) => new window.google.maps.LatLng(r.lat, r.lng));
-    if (pts.length) return pts;
-    return [
-      new window.google.maps.LatLng(10.736, 123.01),
-      new window.google.maps.LatLng(10.739, 123.015),
-      new window.google.maps.LatLng(10.732, 123.012),
-    ];
-  }, [isLoaded, reports]);
+    
+    console.log('🎨 Creating heatmap from actual collection data...');
+    console.log('📊 Total collections:', collections.length);
+    console.log('📊 Collections by zone:', collectionsByZone);
+    
+    const heatData = [];
+    
+    // Only create heat points for zones that have actual collections (count > 0)
+    Object.entries(collectionsByZone).forEach(([zoneName, count]) => {
+      if (count === 0) {
+        console.log(`⏭️ Skipping ${zoneName} - no collections`);
+        return; // Skip zones with no collections
+      }
+      
+      console.log(`🔥 Processing ${zoneName} with ${count} collections`);
+      
+      let position = null;
+      
+      // Try to get position from zones GeoJSON first
+      const zone = zones.find(z => z.name === zoneName);
+      if (zone && zone.polygons && zone.polygons.length > 0) {
+        // Get center point of zone polygon
+        const bounds = new window.google.maps.LatLngBounds();
+        zone.polygons[0][0].forEach(point => bounds.extend(point));
+        position = bounds.getCenter();
+        console.log(`🗺️ Using GeoJSON coordinates for ${zoneName}:`, position);
+      } else {
+        // Generate dynamic coordinates based on zone number
+        const zoneNumber = parseInt(zoneName.replace('Zone ', ''));
+        if (isNaN(zoneNumber)) {
+          console.log(`❌ Invalid zone name format: ${zoneName}, skipping`);
+          return;
+        }
+        
+        // Generate coordinates in a grid pattern around Talisay City center
+        const baseLat = 10.736;
+        const baseLng = 123.010;
+        const latOffset = (zoneNumber % 4) * 0.01; // 4 zones per row
+        const lngOffset = Math.floor(zoneNumber / 4) * 0.01; // Rows of zones
+        
+        position = {
+          lat: baseLat + latOffset,
+          lng: baseLng + lngOffset
+        };
+        
+        console.log(`🗺️ Generated coordinates for ${zoneName}:`, position);
+      }
+      
+      if (position) {
+        // Create exactly ONE heat point per zone (same intensity for all zones with collections)
+        // Collection details will be shown in InfoWindow when clicked
+        heatData.push({
+          location: new window.google.maps.LatLng(position.lat, position.lng),
+          weight: 1.0 // Same intensity for all zones with collections
+        });
+        
+        console.log(`🗺️ Zone ${zoneName}: ${count} collections, heat spot: 1 (details in InfoWindow)`);
+      }
+    });
+    
+    console.log('🗺️ Total heat points created:', heatData.length);
+    console.log('🗺️ Heat data sample:', heatData.slice(0, 3));
+    return heatData;
+  }, [isLoaded, collectionsByZone, zones, collections]);
+
+  // Create clickable zone data for InfoWindows (only zones with collections)
+  const zoneInfoData = useMemo(() => {
+    const zoneData = [];
+    
+    Object.entries(collectionsByZone).forEach(([zoneName, count]) => {
+      // Only include zones that have actual collections
+      if (count === 0) {
+        console.log(`⏭️ Skipping InfoWindow for ${zoneName} - no collections`);
+        return;
+      }
+      
+      console.log(`📋 Creating InfoWindow for ${zoneName} with ${count} collections`);
+      
+      let position = null;
+      
+      // Try to get position from zones GeoJSON first
+      const zone = zones.find(z => z.name === zoneName);
+      if (zone && zone.polygons && zone.polygons.length > 0) {
+        // Get center point of zone polygon
+        const bounds = new window.google.maps.LatLngBounds();
+        zone.polygons[0][0].forEach(point => bounds.extend(point));
+        position = bounds.getCenter();
+        console.log(`🗺️ Using GeoJSON coordinates for InfoWindow ${zoneName}:`, position);
+      } else {
+        // Generate dynamic coordinates based on zone number
+        const zoneNumber = parseInt(zoneName.replace('Zone ', ''));
+        if (isNaN(zoneNumber)) {
+          console.log(`❌ Invalid zone name format for InfoWindow: ${zoneName}, skipping`);
+          return;
+        }
+        
+        // Generate coordinates in a grid pattern around Talisay City center
+        const baseLat = 10.736;
+        const baseLng = 123.010;
+        const latOffset = (zoneNumber % 4) * 0.01; // 4 zones per row
+        const lngOffset = Math.floor(zoneNumber / 4) * 0.01; // Rows of zones
+        
+        position = {
+          lat: baseLat + latOffset,
+          lng: baseLng + lngOffset
+        };
+        
+        console.log(`🗺️ Generated coordinates for InfoWindow ${zoneName}:`, position);
+      }
+      
+      if (position) {
+        // Get zone-specific collection data
+        const zoneCollections = collections.filter(c => c.zone === zoneName && c.status === 'collected');
+        const totalWeight = zoneCollections.reduce((sum, c) => sum + (c.weightKg || 0), 0);
+        const avgWeight = count > 0 ? (totalWeight / count).toFixed(1) : 0;
+        
+        zoneData.push({
+          id: zoneName,
+          position: position,
+          zoneName: zoneName,
+          collectionCount: count,
+          totalWeight: totalWeight,
+          avgWeight: avgWeight,
+          collections: zoneCollections
+        });
+      }
+    });
+    
+    console.log('📋 InfoWindow zones created:', zoneData.length);
+    console.log('📋 InfoWindow zones:', zoneData.map(z => z.zoneName));
+    return zoneData;
+  }, [collectionsByZone, zones, collections]);
+
+  const totalWeightCollected = useMemo(() => {
+    return collections
+      .filter(c => c.status === 'collected')
+      .reduce((total, c) => total + (c.weightKg || 0), 0);
+  }, [collections]);
 
   const kpi = {
-    totalZones: zones.length || Object.keys(reportsByZone).length || 0,
+    totalZones: zones.length || Object.keys(collectionsByZone).length || 0,
     activeCollectors,
-    avgReportsPerDay,
+    totalCollections: collections.filter(c => c.status === 'collected').length,
+    totalWeightCollected,
     pendingComplaints: pendingComplaints.length,
   };
 
@@ -282,8 +486,16 @@ const DssScreen = () => {
               <div className="kpi-value">{kpi.activeCollectors}</div>
             </div>
             <div className="kpi">
-              <div className="kpi-label">Avg Reports / Day</div>
-              <div className="kpi-value">{kpi.avgReportsPerDay}</div>
+              <div className="kpi-label">Total Collections</div>
+              <div className="kpi-value">
+                {loadingDb ? "Loading..." : kpi.totalCollections}
+              </div>
+            </div>
+            <div className="kpi">
+              <div className="kpi-label">Total Weight (kg)</div>
+              <div className="kpi-value">
+                {loadingDb ? "Loading..." : kpi.totalWeightCollected.toLocaleString()}
+              </div>
             </div>
             <div className="kpi">
               <div className="kpi-label">Pending Complaints</div>
@@ -295,8 +507,8 @@ const DssScreen = () => {
             {/* MAP */}
             <section className="card dss-map">
               <div className="card-head">
-                <h3>Waste Hotspot Heatmap</h3>
-                <span className="hint">GPS + complaints density</span>
+                <h3>Collection Activity Map</h3>
+                <span className="hint">🟢 Low | 🟡 Medium | 🔴 High Collection</span>
               </div>
               {!isLoaded ? (
                 <div className="card-body">
@@ -335,34 +547,106 @@ const DssScreen = () => {
                         }}
                       />
                     ))}
-                    <HeatmapLayerF
-                      data={heatPoints}
+                    {/* Collection Activity Heatmap */}
+                    <HeatmapLayer
+                      data={collectionHeatData}
                       options={{
-                        radius: 60,
-                        opacity: 0.7,
+                        radius: 100,
+                        opacity: 0.8,
                         gradient: [
-                          "rgba(0, 255, 255, 0)",
-                          "rgba(0, 255, 0, 1)",
-                          "rgba(255, 255, 0, 1)",
-                          "rgba(255, 0, 0, 1)",
+                          "rgba(0, 255, 0, 0)",      // Transparent
+                          "rgba(0, 255, 0, 0.6)",    // Green - Low collection
+                          "rgba(255, 255, 0, 0.8)",  // Yellow - Medium collection
+                          "rgba(255, 0, 0, 1)",      // Red - High collection
                         ],
                       }}
                     />
+
+                    {/* Invisible clickable markers for InfoWindows */}
+                    {zoneInfoData.map((zone) => (
+                      <Marker
+                        key={zone.id}
+                        position={zone.position}
+                        icon={{
+                          url: 'data:image/svg+xml;charset=UTF-8,' + encodeURIComponent(`
+                            <svg width="100" height="100" xmlns="http://www.w3.org/2000/svg">
+                              <circle cx="50" cy="50" r="50" fill="transparent" stroke="none"/>
+                            </svg>
+                          `),
+                          scaledSize: new window.google.maps.Size(100, 100),
+                          anchor: new window.google.maps.Point(50, 50),
+                        }}
+                        onClick={() => {
+                          console.log('🗺️ Zone clicked:', zone.zoneName);
+                          setActiveInfoWindow(zone.id);
+                        }}
+                      />
+                    ))}
+
+                    {/* InfoWindow for selected zone */}
+                    {activeInfoWindow && (() => {
+                      const selectedZone = zoneInfoData.find(z => z.id === activeInfoWindow);
+                      if (!selectedZone) return null;
+                      
+                      return (
+                        <InfoWindow
+                          position={selectedZone.position}
+                          onCloseClick={() => setActiveInfoWindow(null)}
+                        >
+                          <div style={{ padding: '10px', minWidth: '250px' }}>
+                            <h3 style={{ margin: '0 0 10px 0', color: '#2d6a4f', fontSize: '16px' }}>
+                              📍 {selectedZone.zoneName}
+                            </h3>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Collections:</strong> {selectedZone.collectionCount}
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Total Weight:</strong> {selectedZone.totalWeight} kg
+                            </div>
+                            
+                            <div style={{ marginBottom: '8px' }}>
+                              <strong>Average Weight:</strong> {selectedZone.avgWeight} kg
+                            </div>
+                            
+                            {selectedZone.collections.length > 0 && (
+                              <div>
+                                <strong>Recent Collections:</strong>
+                                <div style={{ maxHeight: '120px', overflowY: 'auto', marginTop: '5px' }}>
+                                  {selectedZone.collections.slice(0, 3).map((collection, idx) => (
+                                    <div key={idx} style={{ 
+                                      fontSize: '12px', 
+                                      padding: '3px 0', 
+                                      borderBottom: '1px solid #eee' 
+                                    }}>
+                                      <div>📅 {collection.day} - {collection.time}</div>
+                                      <div>⚖️ {collection.weightKg} kg</div>
+                                      <div>👤 {collection.collectorId}</div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </InfoWindow>
+                      );
+                    })()}
                   </GoogleMap>
                 </div>
               )}
             </section>
 
-            {/* Reports by Zone */}
+            {/* Collections by Zone */}
             <section className="card">
               <div className="card-head">
-                <h3>Reports by Zone</h3>
-                <span className="hint">Daily aggregation</span>
+                <h3>Collections by Zone</h3>
+                <span className="hint">Collection activity per zone</span>
               </div>
               <div className="card-body">
                 <BarChart
-                  data={reportsByZone}
-                  max={Math.max(1, ...Object.values(reportsByZone))}
+                  data={collectionsByZone}
+                  max={Math.max(1, ...Object.values(collectionsByZone))}
                 />
               </div>
             </section>
@@ -380,7 +664,7 @@ const DssScreen = () => {
                 <div className="table">
                   <div className="tr th">
                     <div>Zone</div>
-                    <div>Reports</div>
+                    <div>Collections</div>
                     <div>Priority</div>
                     <div>Recommended Trucks</div>
                   </div>
@@ -390,7 +674,7 @@ const DssScreen = () => {
                       key={r.zoneName}
                     >
                       <div>{r.zoneName}</div>
-                      <div>{r.reports}</div>
+                      <div>{r.collections}</div>
                       <div
                         className={`pill ${
                           r.priority === "High" ? "pill-red" : "pill-green"
