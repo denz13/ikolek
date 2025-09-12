@@ -6,6 +6,7 @@ import DashboardScreen from './pages/Dashboard.jsx';
 import AddTruckScreen from './pages/Truck.jsx';
 import TrackCollection from './pages/TrackCollection.jsx';
 import Collectors from './pages/Collectors.jsx';
+import AddCollectors from './pages/AddCollectors.jsx';
 import Reports from './pages/Reports.jsx';
 import Fleet from './pages/Fleet.jsx';
 import DSS from './pages/DSS.jsx';
@@ -22,7 +23,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/truck" element={<AddTruckScreen />}/>
         <Route path="/track-collection" element={<TrackCollection />} />
         <Route path="/fleet" element={<Fleet />} />
-        <Route path="/collectors" element={<Collectors />} />
+        <Route path="/add-collectors" element={<AddCollectors />} />
         <Route path="/reports" element={<Reports />} />
         <Route path="/dss" element={<DSS />} />
         <Route path="/schedules" element={<Schedules />} />

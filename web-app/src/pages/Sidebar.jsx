@@ -54,7 +54,7 @@ const Sidebar = () => {
   const routes = [
     { route: "dashboard", label: "Dashboard", icon: <MdDashboard className="icon dashboard-icon" /> },
     { route: "fleet", label: "Fleet Management", icon: <FaTruck className="icon" /> }, // trucks icon ✅
-    { route: "collectors", label: "Add Collectors", icon: <IoPeopleSharp className="icon" /> },
+    { route: "add-collectors", label: "Add Collectors", icon: <IoPeopleSharp className="icon" /> },
     { route: "reports", label: "Reports", icon: <RiFeedbackFill className="icon" /> },
     { route: "dss", label: "DSS", icon: <MdOutlineAnalytics className="icon" /> },
     { route: "schedules", label: "Schedules", icon: <AiFillSchedule className="icon" /> },

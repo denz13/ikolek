@@ -14,7 +14,7 @@ import SHA256 from "crypto-js/sha256";
 import { FaUserGear } from "react-icons/fa6";
 import { FaRegEye, FaRegEyeSlash, FaRegEdit, FaRegTrashAlt } from "react-icons/fa";
 import { CiCircleList } from "react-icons/ci";
-import "./Collectors.css";
+import "./AddCollectors.css";
 
 /** ---------------- Standards & Normalizers ---------------- */
 // No enforced standard / regex / normalization for collectorId (free text)
@@ -66,18 +66,15 @@ const useConfirm = () => {
   return { ask, Dialog, open, close };
 };
 
-const AddCollectorScreen = () => {
-  console.log('🚀 AddCollectorScreen component mounted');
-  
+const AddCollectors = () => {
   // form fields
   const [collectorId, setCollectorId] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [password, setPassword] = useState("");
-  const [assignedTruckId, setAssignedTruckId] = useState(""); // chosen from unassigned list
+  const [assignedTruckId, setAssignedTruckId] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  
 
   // data
   const [collectors, setCollectors] = useState([]);
@@ -206,7 +203,7 @@ const AddCollectorScreen = () => {
     if (saving) return;
     if (!validate()) return;
 
-    const id = collectorId.trim(); // use as-is (no normalization)
+    const id = collectorId.trim();
     const normalizedTruck = assignedTruckId ? normalizeTruckId(assignedTruckId) : "";
 
     // If the entered truck is assigned to someone else, confirm reassignment
@@ -281,14 +278,14 @@ const AddCollectorScreen = () => {
 
   /** ---------------- UI Events ---------------- */
   const handleEdit = (collector) => {
-    setCollectorId(collector.id); // show existing id (doc id)
+    setCollectorId(collector.id);
     setFirstName(collector.firstName || "");
     setLastName(collector.lastName || "");
     setContactNumber(collector.contactNumber || "");
     setPassword("");
     setAssignedTruckId(collector.assignedTruckId || "");
     setEditingId(collector.id);
-    setTruckLocked(Boolean(collector.assignedTruckId)); // lock if already has a truck
+    setTruckLocked(Boolean(collector.assignedTruckId));
   };
 
   const requestDelete = (collector) => {
@@ -362,25 +359,203 @@ const AddCollectorScreen = () => {
     return owner;
   }, [truckQuery, collectors, editingId]);
 
-  console.log('🎨 Collectors component rendering with:', { 
-    collectorsCount: collectors.length, 
-    trucksCount: trucks.length 
-  });
-
   return (
-    <div className="collector-main">
+    <div className="add-collectors-main">
       <Sidebar />
-      <div className="collector-container">
-        {/* Simple test content */}
-        <div style={{background: 'lightgreen', padding: '20px', margin: '10px'}}>
-          <h2>Collectors Page - Working!</h2>
-          <p>Collectors loaded: {collectors.length}</p>
-          <p>Trucks loaded: {trucks.length}</p>
+      <div className="add-collectors-container">
+        {/* Success toast */}
+        {successMessage && (
+          <div className="success-message" role="status" aria-live="polite">
+            <span className="success-icon">✓</span>
+            <span className="success-text">{successMessage}</span>
+            <button
+              className="toast-close"
+              aria-label="Close"
+              onClick={() => setSuccessMessage("")}
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        {/* List */}
+        <div className="collectors-list">
+          <h3 className="list-title">
+            <CiCircleList className="icon" /> Collector List ({collectors.length})
+          </h3>
+          <div className="collectors-scroll">
+            {collectors.length === 0 && (
+              <div className="empty-state">No collectors found.</div>
+            )}
+            {collectors.map((c) => (
+              <div
+                key={c.id}
+                className={`collector-item ${c.assignedTruckId ? "has-truck" : ""}`}
+              >
+                <div className="collector-info">
+                  <div className="collector-name-line">
+                    <span className="collector-name">{c.firstName} {c.lastName}</span>
+                    <span className="collector-id-pill">ID: {c.id}</span>
+                    {c.assignedTruckId ? (
+                      <span className="truck-pill">Truck: {c.assignedTruckId}</span>
+                    ) : (
+                      <span className="no-truck">• No truck</span>
+                    )}
+                  </div>
+                </div>
+                <div className="collector-actions">
+                  <button
+                    className="icon-btn edit-btn"
+                    title="Edit"
+                    onClick={() => handleEdit(c)}
+                  >
+                    <FaRegEdit />
+                  </button>
+                  <button
+                    className="icon-btn delete-btn"
+                    title="Delete"
+                    onClick={() => requestDelete(c)}
+                  >
+                    <FaRegTrashAlt />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
+        {/* Form */}
+        <div className="collectors-form">
+          <h2 className="form-title">
+            <FaUserGear className="icon" /> {editingId ? "Edit Collector" : "Add Collector"}
+          </h2>
+
+          <input
+            autoComplete="off"
+            type="text"
+            placeholder="Collector ID (e.g., collectorGAN-4734)"
+            value={collectorId}
+            onChange={(e) => setCollectorId(e.target.value)}
+            onBlur={(e) => setCollectorId(e.target.value.trim())}
+            disabled={!!editingId}
+          />
+
+          <input
+            autoComplete="off"
+            type="text"
+            placeholder="First Name"
+            value={firstName}
+            onChange={(e) => setFirstName(e.target.value)}
+          />
+          <input
+            autoComplete="off"
+            type="text"
+            placeholder="Last Name"
+            value={lastName}
+            onChange={(e) => setLastName(e.target.value)}
+          />
+
+          <input
+            autoComplete="off"
+            type="tel"
+            placeholder="09XXXXXXXXX"
+            value={contactNumber}
+            onChange={(e) => setContactNumber(e.target.value)}
+          />
+
+          <div className="password-wrapper">
+            <input
+              autoComplete="new-password"
+              type={showPassword ? "text" : "password"}
+              placeholder={editingId ? "New Password (optional)" : "Password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+            <span
+              className="toggle-password"
+              onClick={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <FaRegEyeSlash /> : <FaRegEye />}
+            </span>
+          </div>
+
+          {/* Truck Typeahead */}
+          <div className="truck-typeahead">
+            <label className="small-label">Assign Truck</label>
+            <div className="truck-typeahead-row">
+              <input
+                list="unassigned-trucks"
+                className="truck-select"
+                type="text"
+                placeholder={
+                  unassignedTruckIds.length
+                    ? "Search or pick a truck…"
+                    : "No unassigned trucks"
+                }
+                value={truckLocked ? assignedTruckId : truckQuery}
+                onChange={(e) => {
+                  if (truckLocked) return;
+                  const val = normalizeTruckId(e.target.value);
+                  setTruckQuery(val);
+                  setAssignedTruckId(val);
+                }}
+                onBlur={(e) => {
+                  if (truckLocked) return;
+                  const val = normalizeTruckId(e.target.value);
+                  setTruckQuery(val);
+                  setAssignedTruckId(val);
+                }}
+                disabled={truckLocked || unassignedTruckIds.length === 0}
+              />
+              {truckLocked ? (
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={tryEnableTruckChange}
+                  title="Change assigned truck"
+                >
+                  Change…
+                </button>
+              ) : null}
+            </div>
+
+            <datalist id="unassigned-trucks">
+              {filteredTruckChoices.map((id) => (
+                <option key={id} value={id} />
+              ))}
+            </datalist>
+
+            {currentOwnerOfTypedTruck && (
+              <div className="form-help warn">
+                "{truckQuery}" is currently assigned to{" "}
+                {currentOwnerOfTypedTruck.firstName} {currentOwnerOfTypedTruck.lastName}. If you
+                proceed, you will be asked to confirm reassignment.
+              </div>
+            )}
+          </div>
+
+          <div className="form-actions">
+            <button className="save-btn" onClick={handleSave} disabled={saving}>
+              {saving ? (editingId ? "Updating…" : "Saving…") : (editingId ? "Update" : "Save")}
+            </button>
+            <button
+              className="cancel-btn"
+              onClick={requestCancel}
+              disabled={saving}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       </div>
+
+      {/* Global dialogs */}
+      <deleteConfirm.Dialog />
+      <discardConfirm.Dialog />
+      <reassignConfirm.Dialog />
+      <overrideConfirm.Dialog />
     </div>
   );
 };
 
-export default AddCollectorScreen;
+export default AddCollectors;
